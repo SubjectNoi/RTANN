@@ -1,6 +1,10 @@
 #ifndef RTANN_H_
 #define RTANN_H_
 #include <optix.h>
+#include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
+#include <optix_stubs.h>
+#include <sys/resource.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <vector>
@@ -51,5 +55,48 @@ void search(      float**   queries,            /* NQ * D */
 
 void load_query(const char* query_path, const int& NQ, const int& D, float** queries);
 void load_codebook(const char* codebook_path, const int& M, const int& nbits, float*** codebook, float* dist_medium);
+
+class rtann {
+private:
+    CUcontext cuCtx = 0;
+    CUdeviceptr d_gas_output_buffer;
+    OptixDeviceContext context = nullptr;
+    OptixTraversableHandle gas_handle;
+    OptixDeviceContextOptions options = {};
+    OptixAccelBuildOptions accel_options = {};
+
+    int n_points, n_dim, n_queries;
+    int n_clusters, n_codebook, n_codebook_idx_bitwidth, n_codebook_entry;
+    char *points_file_path;
+public:
+    
+    // utils: load_points(), load_queries()
+    // init()
+    // ivf_construct(), ivf_search()
+    // codebook_construct(), bvh_construct_global(), bvh_construct_local(), bvh_construct_query()
+    // bvh_search(), calculate_orrurance()
+    // build_index()
+    // search()
+
+    /* build_index(ivf, bvh_global);
+     * search(q, query_as_ray, global_bvh) {
+     *     ivf_search();
+     *     calculate_occurance();
+     *     // Sort and Return 
+     * }
+     * 
+     * 
+     * build_index(ivf);
+     * search(q, query_as_primitive, query_bvh) {
+     *     ivf_search();
+     *     bvh_construct_query();
+     *     bvh_search();
+     *     calculate_occurance();
+     * }
+     */
+
+};
+
 }; // namespace rtann
+
 #endif
