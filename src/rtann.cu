@@ -49,10 +49,15 @@ extern "C" __global__ void __anyhit__ah() {
     const float3 ray_dir = optixGetWorldRayDirection();
     const float t = optixGetRayTmax();
     const unsigned int prim_idx = optixGetPrimitiveIndex();
+    HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
+
+    // Wierd, this raise error: lvalue can't be modified, but in ray gen there is a const, now we just abandon const.
+    // const HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
 #if SEARCH_AS_PRIMITIVES == 0
     optixSetPayload_0(MAGIC_NUMBER_0);
 #else
     optixSetPayload_1(prim_idx >> 1);
+    htData->prim_hit[prim_idx>>1] = 114514;
 #endif
     optixIgnoreIntersection();
 }

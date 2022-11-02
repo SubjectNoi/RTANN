@@ -4,7 +4,7 @@
 #include <random>
 #include <assert.h>
 #include <math.h>
-
+#include <sys/time.h>
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
@@ -460,10 +460,13 @@ void search(      float**   queries,            /* NQ * D */
     sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
     sbt.missRecordCount = 1;  
 
+    unsigned int* d_phit, *h_phit;
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_phit), sizeof(unsigned int) * 16));
     CUdeviceptr hitgroup_record;
     size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
     HitGroupSbtRecord hg_sbt;
+    hg_sbt.data.prim_hit = d_phit;
     OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbt));
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(hitgroup_record), &hg_sbt, hitgroup_record_size, cudaMemcpyHostToDevice));
     sbt.hitgroupRecordBase = hitgroup_record;
@@ -493,6 +496,10 @@ void search(      float**   queries,            /* NQ * D */
 #else
     CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&prim_hit), prim_hit_size));
     CUDA_CHECK(cudaMemcpy(prim_hit, reinterpret_cast<void*>(d_prim_hit), prim_hit_size, cudaMemcpyDeviceToHost));
+
+    CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_phit), sizeof(unsigned int) * 16));
+        for (int i = 0; i < 16; i++) h_phit[i] = 0;
+    CUDA_CHECK(cudaMemcpy(h_phit, reinterpret_cast<void*>(d_phit), sizeof(unsigned int) * 16, cudaMemcpyDeviceToHost));
 #endif
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
@@ -511,14 +518,20 @@ void search(      float**   queries,            /* NQ * D */
             hit_codebook_entry.push_back(std::pair<int, int>(i / N_POINTS, i % N_POINTS));
         }
     }
-    // for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
+    for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
 #else
     for (int i = 0; i < num_primitives * 2; i++) {
         if (prim_hit[i] == MAGIC_NUMBER_1) {
-            hit_codebook_entry.push_back(std::pair<int, int>(i / (2 * N_POINTS), (i / 2) % N_POINTS));
+            hit_codebook_entry.push_back(std::pair<int, int>(i / (N_POINTS), (i) % N_POINTS));
         }
     }    
-    // for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
+    for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
+    std::cout << "------------------------" << std::endl;
+    for (int i = 0; i < 16; i++) {
+        if (h_phit[i] == 114514) {
+            std::cout << i << std::endl;
+        }
+    }
 #endif
 
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( sbt.raygenRecord       ) ) );
