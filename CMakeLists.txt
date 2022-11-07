@@ -4,7 +4,7 @@ find_package(CUDA REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2 -mavx2 -pg -w")
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_86,code=sm_86;)
-set(OptiX_INSTALL_DIR /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/)
+set(OptiX_INSTALL_DIR /home/wtni/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/)
 
 include_directories(${OptiX_INSTALL_DIR}/include)
 include_directories(${OptiX_INSTALL_DIR}/SDK)
