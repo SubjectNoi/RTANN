@@ -101,7 +101,6 @@ q = 10
 cluster_num = 1
 
 filename = "recall"
-# filepath = '/home/wtni/RTANN/' 
 filepath = '/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/script/' + filename
 # np.random.seed(int(time.time()))
 np.random.seed(7752)

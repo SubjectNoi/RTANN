@@ -461,7 +461,7 @@ void search(      float**   queries,            /* NQ * D */
     sbt.missRecordCount = 1;  
 
     unsigned int* d_phit, *h_phit;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_phit), sizeof(unsigned int) * num_primitives));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_phit), sizeof(unsigned int) * 16));
     CUdeviceptr hitgroup_record;
     size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
@@ -497,10 +497,9 @@ void search(      float**   queries,            /* NQ * D */
     CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&prim_hit), prim_hit_size));
     CUDA_CHECK(cudaMemcpy(prim_hit, reinterpret_cast<void*>(d_prim_hit), prim_hit_size, cudaMemcpyDeviceToHost));
 
-    CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_phit), sizeof(unsigned int) * num_primitives));
-        for (int i = 0; i < num_primitives; i++) h_phit[i] = 0;
-    CUDA_CHECK(cudaMemcpy(h_phit, reinterpret_cast<void*>(d_phit), sizeof(unsigned int) * num_primitives, cudaMemcpyDeviceToHost));
-#endif
+    CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_phit), sizeof(unsigned int) * 16));
+    for (int i = 0; i < 16; i++) h_phit[i] = 0;
+    CUDA_CHECK(cudaMemcpy(h_phit, reinterpret_cast<void*>(d_phit), sizeof(unsigned int) * 16, cudaMemcpyDeviceToHost));#endif
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
     std::cout << "OptiX Trace Time: " << ms << " ms" << std::endl;
@@ -527,7 +526,7 @@ void search(      float**   queries,            /* NQ * D */
     }    
     for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
     std::cout << "------------------------" << std::endl;
-    for (int i = 0; i < num_primitives; i++) {
+    for (int i = 0; i < 16; i++) {
         if (h_phit[i] == 114514) {
             std::cout << i << std::endl;
         }
