@@ -1,4 +1,42 @@
-# Interface Definition
+This file will be used as developer log from now on.
+
+# Planning of Re-constructing the project
+1. Expected usage of our system:
+```
+int main(int argc, char** argv) {
+    RTANN rtann_instance;
+    // Offline part
+    rtann_instance.read_data(file_path);
+    rtann_instance.set_property("coarse_grained_cluster_num", int32);
+    rtann_instance.set_property("use_pq", true/false);
+    rtann_instance.set_property("rt_mode", query_as_ray/points_as_ray);
+
+    rtann_instance.coarse_grained_cluster();
+    if (query_as_ray) rtann_instance.build_bvh();
+    // Online part
+    vector <query> q;   // Other threads may fill the q
+    for (int i = 0; i < q.size(); i++) {
+        // No pipeline version:
+        lab = rtann_instance.search_coarse_grain_cluster(q[i]);
+        bvh = rtann_instance.bvh_dict[lab];
+        pts = rtann_instance.points[label==lab];
+
+        if (query_as_ray) {
+            rtann_instance.launch_RT(primitives=bvh, ray=q[i]);
+        }
+        else {
+            bvh_query = rtann_instance.build_bvh_query(pts);
+            rtann_instance.launch_RT(primitives=bvh_query, ray=pts);
+        }
+
+        rtann_instance.count_intersection();
+        rtann_instance.return_top100();
+    }
+    return 0;
+}
+```
+
+# Interface Definition of count_intersect
 
 1. Total points = `N`, Select points = `C`. For every `N` elements of `points` (representing a single query), you need to calculate the occurance of a point in `C` in `D/2` iteration. Example:
 * `N = 16, C = 4, D = 4, Q = 2`

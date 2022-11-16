@@ -32,7 +32,7 @@ T*** allocate(int d0, int d1, int d2) {
 }
 
 int main(int argc, char** argv) {
-    int nq = atoi(argv[1]), d = atoi(argv[2]), m = d / 2, nbits = 8, n_points = 1 << nbits;
+    int nq = atoi(argv[1]), d = atoi(argv[2]), m = d / 2, nbits = 2, n_points = 1 << nbits;
     float dist_thres_scale = atof(argv[3]);
     float* codebook_dist_med = allocate<float>(m);
     float** queries = allocate<float>(nq, d);
@@ -41,9 +41,9 @@ int main(int argc, char** argv) {
     float** dummy4;
     std::vector<std::vector<float>> result;
     dbg("Loading Query... ");
-    rtann::load_query("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/query.txt", nq, d, queries);
+    rtann::load_query("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/query_toy.txt", nq, d, queries);
     dbg("Loading Codebook... ");
-    rtann::load_codebook("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/codebook.txt", m, nbits, codebook, codebook_dist_med);
+    rtann::load_codebook("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/codebook_toy.txt", m, nbits, codebook, codebook_dist_med);
     dbg("Load Finished");
     rtann::search(queries, nq, d, codebook, m, nbits, codebook_dist_med, dist_thres_scale, dummy3, dummy4, result);
     dbg("OptiX-based Search Complete");

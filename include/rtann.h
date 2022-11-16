@@ -14,7 +14,7 @@
 #define N_RESULT 1024
 #define N_RECALL 128
 #define USE_EMPRICAL_THRES 1
-#define SEARCH_AS_PRIMITIVES 0
+#define SEARCH_AS_PRIMITIVES 1
 
 struct Params {
     OptixTraversableHandle handle;
@@ -36,6 +36,7 @@ struct MissData {
 };
 
 struct HitGroupData {
+    unsigned int* prim_hit;
     // No data needed
 };
 
