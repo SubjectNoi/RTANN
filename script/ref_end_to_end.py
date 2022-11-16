@@ -51,7 +51,7 @@ for i in range(len(xb[0])):
 #     for j in range(len(xb)):
 #         xb[j][i] /= stat[i][2]
 
-kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=32).fit(xb)
+# kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=32).fit(xb)
 # xq = np.random.rand(q, d).astype("float32")
 xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
 xq = xq[9076:9076+q]
@@ -59,11 +59,15 @@ xq = xq[9076:9076+q]
 # for i in range(len(xq[0])):
 #     for j in range(len(xq)):
 #         xq[j][i] /= stat[i][2]
-cluster_centroids = kmeans.cluster_centers_
-labels = kmeans.labels_
+# cluster_centroids = kmeans.cluster_centers_
+# labels = kmeans.labels_
 recalls = []
 print("Clustering Finished.")
-
+for s in stat:
+    print(s)
+for i in range(0, 64):
+    a, b = stat[i*2][2], stat[i*2+1][2]
+    print((a ** 2 + b ** 2) ** 0.5)
 for q in range(len(xq)):
     query = xq[q]
 
