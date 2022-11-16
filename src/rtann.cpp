@@ -5,10 +5,10 @@
 #include <assert.h>
 #include <math.h>
 #include <sys/time.h>
-#include <optix.h>
-#include <optix_function_table_definition.h>
-#include <optix_stack_size.h>
-#include <optix_stubs.h>
+// #include <optix.h>
+// #include <optix_function_table_definition.h>
+// #include <optix_stack_size.h>
+// #include <optix_stubs.h>
 #include <sys/resource.h>
 
 #include <cuda_runtime.h>
@@ -499,7 +499,8 @@ void search(      float**   queries,            /* NQ * D */
 
     CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_phit), sizeof(unsigned int) * 16));
     for (int i = 0; i < 16; i++) h_phit[i] = 0;
-    CUDA_CHECK(cudaMemcpy(h_phit, reinterpret_cast<void*>(d_phit), sizeof(unsigned int) * 16, cudaMemcpyDeviceToHost));#endif
+    CUDA_CHECK(cudaMemcpy(h_phit, reinterpret_cast<void*>(d_phit), sizeof(unsigned int) * 16, cudaMemcpyDeviceToHost));
+#endif
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
     std::cout << "OptiX Trace Time: " << ms << " ms" << std::endl;

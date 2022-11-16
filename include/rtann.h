@@ -1,3 +1,4 @@
+#pragma once
 #ifndef RTANN_H_
 #define RTANN_H_
 #include <optix.h>
