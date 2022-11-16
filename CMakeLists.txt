@@ -15,5 +15,5 @@ include_directories(/usr/local/cuda/samples/common/inc/)
 include_directories(/usr/local/cuda/include/lib64/)
 link_directories(/usr/lib /usr/local/lib /usr/local/cuda/lib64)
 
-cuda_add_executable(main main.cpp src/rtann.cpp OPTIONS -arch=sm_86)
+cuda_add_executable(main main.cpp OPTIONS -arch=sm_86)
 target_link_libraries(main ${CUDA_cudadevrt_LIBRARY})
