@@ -8,6 +8,7 @@
 #include <string>
 #include <map>
 #include <algorithm>
+#include <numeric>
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>

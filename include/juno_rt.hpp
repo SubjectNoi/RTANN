@@ -64,7 +64,7 @@ public:
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
     }
 
-    void constructBVHforLabelWithRadius(int _label, T** _search_points, int* _search_points_labels, int _N, int _D, T _radius, METRIC _metric) {
+    void constructBVHforLabelWithRadius(int _label, T** _search_points, int* _search_points_labels, int _N, int _D, T** _stat, T _radius, METRIC _metric) {
         float3* vertices;
         int num_vertices;
         std::vector <int> point_index_of_label;
@@ -82,6 +82,9 @@ public:
                 num_vertices = hitable_num * TRIANGLE_PER_HITABLE * dim_pair;
                 vertices = new float3[num_vertices];
                 for (int d = 0; d < dim_pair; d++) {
+                    float factor = std::sqrt(_stat[d << 1][1] * _stat[d << 1][1] + _stat[d << 1 + 1][1] * _stat[d << 1 + 1][1]);
+                    dbg(factor);
+                    _radius *= factor;
                     for (int n = 0; n < hitable_num; n++) {
                         T x = _search_points[point_index_of_label[n]][d << 1];
                         T y = _search_points[point_index_of_label[n]][d << 1 + 1];
