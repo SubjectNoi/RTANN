@@ -2,7 +2,7 @@
 #ifndef RTANN_H_
 #define RTANN_H_
 #include <optix.h>
-#include <optix_function_table_definition.h>
+// #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
 #include <sys/resource.h>
@@ -15,7 +15,7 @@
 #define N_RESULT 1024
 #define N_RECALL 128
 #define USE_EMPRICAL_THRES 1
-#define SEARCH_AS_PRIMITIVES 1
+#define SEARCH_AS_PRIMITIVES 0
 
 struct Params {
     OptixTraversableHandle handle;

@@ -5,10 +5,10 @@
 #include <assert.h>
 #include <math.h>
 #include <sys/time.h>
-// #include <optix.h>
-// #include <optix_function_table_definition.h>
-// #include <optix_stack_size.h>
-// #include <optix_stubs.h>
+#include <optix.h>
+#include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
+#include <optix_stubs.h>
 #include <sys/resource.h>
 
 #include <cuda_runtime.h>
@@ -525,7 +525,7 @@ void search(      float**   queries,            /* NQ * D */
             hit_codebook_entry.push_back(std::pair<int, int>(i / (N_POINTS), (i) % N_POINTS));
         }
     }    
-    for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
+    // for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
     std::cout << "------------------------" << std::endl;
     for (int i = 0; i < 16; i++) {
         if (h_phit[i] == 114514) {
