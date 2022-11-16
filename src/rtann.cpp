@@ -26,7 +26,7 @@
 #include <sutil/Camera.h>
 #include <sutil/Trackball.h>
 
-#define DUMMY_INPUT_FOR_TEST 0      // Set to one if you don't want to run real data
+#define DUMMY_INPUT_FOR_TEST 1      // Set to one if you don't want to run real data
                                     // This is useful when you want to try different 
                                     // parameter but have no real data
 template <typename T>
@@ -87,21 +87,21 @@ void load_codebook(const char* codebook_path, const int& M, const int& nbits, fl
             codebook[m][i][0] = uniform(engine);
             codebook[m][i][1] = uniform(engine);
         }
-        float tmp_res = 0.0f;
-        int tmp_cnt = 0;
-        for (int x = 0; x < N_POINTS; x++) {
-            for (int y = 0; y < N_POINTS; y++) {
-                if (x == y) continue;
-                else {
-                    float a = codebook[m][x][0] - codebook[m][y][0];
-                    float b = codebook[m][x][1] - codebook[m][y][1];
-                    tmp_res += sqrt(a * a + b * b);
-                    tmp_cnt++;
-                }
-            }
-        }
-        dist_medium[m] = tmp_res / (1.0 * tmp_cnt);
-        dist_medium[m] /= 1;
+        // float tmp_res = 0.0f;
+        // int tmp_cnt = 0;
+        // for (int x = 0; x < N_POINTS; x++) {
+        //     for (int y = 0; y < N_POINTS; y++) {
+        //         if (x == y) continue;
+        //         else {
+        //             float a = codebook[m][x][0] - codebook[m][y][0];
+        //             float b = codebook[m][x][1] - codebook[m][y][1];
+        //             tmp_res += sqrt(a * a + b * b);
+        //             tmp_cnt++;
+        //         }
+        //     }
+        // }
+        // dist_medium[m] = tmp_res / (1.0 * tmp_cnt);
+        // dist_medium[m] /= 1;
     }
 #else
     std::ifstream fread_codebook(codebook_path, std::ios::in);
@@ -296,6 +296,8 @@ void search(      float**   queries,            /* NQ * D */
     OptixAccelBufferSizes gas_buffer_sizes;
     OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accel_options, &triangle_input, 1, &gas_buffer_sizes));
     CUdeviceptr d_temp_buffer_gas;
+    // std::cout << gas_buffer_sizes.tempSizeInBytes << std::endl ;
+    // std::cout << gas_buffer_sizes.outputSizeInBytes << std::endl ;
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_temp_buffer_gas), gas_buffer_sizes.tempSizeInBytes));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_gas_output_buffer), gas_buffer_sizes.outputSizeInBytes));
     OPTIX_CHECK(optixAccelBuild(context, 0, &accel_options, &triangle_input, 1, d_temp_buffer_gas, gas_buffer_sizes.tempSizeInBytes, d_gas_output_buffer, gas_buffer_sizes.outputSizeInBytes, &gas_handle, nullptr, 0));
@@ -319,7 +321,7 @@ void search(      float**   queries,            /* NQ * D */
     // The compiling bash will first call nvcc to compile .cu file into optixir file
     // Then the optixir file are load here, so g++ should be invoke AFTER nvcc
     std::string input;
-    std::ifstream file("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/src/rtann.optixir", std::ios::binary);
+    std::ifstream file("/home/wtni/RTANN/RTANN/src/rtann.optixir", std::ios::binary);
     if (file.good()) {
         std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
         input.assign(buffer.begin(), buffer.end());
@@ -503,6 +505,9 @@ void search(      float**   queries,            /* NQ * D */
 #endif
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
+
+    dbg (N_POINTS, NQ) ;
+    // std::cout << "num of points: " << N_POINTS << " num of queries: " << NQ << std::endl ;
     std::cout << "OptiX Trace Time: " << ms << " ms" << std::endl;
     std::vector <std::pair<int, int>> hit_codebook_entry;
 
@@ -525,13 +530,13 @@ void search(      float**   queries,            /* NQ * D */
             hit_codebook_entry.push_back(std::pair<int, int>(i / (N_POINTS), (i) % N_POINTS));
         }
     }    
-    for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
-    std::cout << "------------------------" << std::endl;
-    for (int i = 0; i < num_primitives; i++) {
-        if (h_phit[i] == 114514) {
-            std::cout << i << std::endl;
-        }
-    }
+    // for (auto&& p : hit_codebook_entry) std::cout << p.first << " " << p.second << std::endl;
+    // std::cout << "------------------------" << std::endl;
+    // for (int i = 0; i < num_primitives; i++) {
+    //     if (h_phit[i] == 114514) {
+    //         std::cout << i << std::endl;
+    //     }
+    // }
 #endif
 
     CUDA_CHECK( cudaFree( reinterpret_cast<void*>( sbt.raygenRecord       ) ) );
