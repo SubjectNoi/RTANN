@@ -19,8 +19,10 @@
 #include <sutil/Camera.h>
 #include <sutil/Trackball.h>
 #include "dbg.h"
+#include "math.h"
 
 #define TRIANGLE_PER_HITABLE 6
+#define HIT_MAGIC_NUMBER 114514
 
 enum RT_MODE {
     QUERY_AS_RAY = 0,

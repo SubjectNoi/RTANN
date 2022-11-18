@@ -4,7 +4,8 @@
 
 #include "utils.hpp"
 #include "juno_rt.hpp"
-
+#include "juno_query.hpp"
+#include "juno_gpu_kernel.cuh"
 namespace juno {
 
 template <typename T>
@@ -15,6 +16,7 @@ private:
     // dataset property
     int         N;
     int         D;
+    int         Q;
     METRIC      metric;
 
     // juno impl property
@@ -25,6 +27,8 @@ private:
     // data
     T**         search_points;
     T**         cluster_centroids;
+    T**         queries;
+    T*          square_C;
     int*        search_points_labels;
     T           radius;
     T**         stat;
@@ -47,6 +51,7 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
+                Q = 10000;
                 metric = METRIC_L2;
                 break;
             case SIFT1B:
@@ -75,10 +80,20 @@ public:
         cluster_centroids = new T* [coarse_grained_cluster_num];
         for (int i = 0; i < coarse_grained_cluster_num; i++) cluster_centroids[i] = new T[D];
         read_cluster_centroids<T>((dataset_dir + "cluster_centroids").c_str(), cluster_centroids, coarse_grained_cluster_num, D);
+        square_C = new T[coarse_grained_cluster_num];
+        for (int i = 0; i < coarse_grained_cluster_num; i++) {
+            T res = 0.0
+            for (int j = 0; j < D; j++) {
+                res += cluster_centroids[i][j] * cluster_centroids[i][j];
+            }
+            square_C[i] = res;
+        }
 
         search_points_labels = new int[N];
         read_search_points_labels((dataset_dir + "search_points_labels").c_str(), search_points_labels, N);
         
+        queries = new T*[]
+
         stat = new T*[D];
         for (int i = 0; i < D; i++) {
             stat[i] = new T[4];    // Min, Max, Mean, Std
@@ -106,6 +121,15 @@ public:
             bvh_dict[c]->constructBVHforLabelWithRadius(c, search_points, search_points_labels, N, D, stat, radius, metric);
             break;
         }
+    }
+
+    void serveQueryBatch() {
+        ker();
+        // square_Q[0 : Batch - 1], square_C[0 : cluster_num - 1]
+        // square_Q[i] = sum([x^2 for x in     query[i]])   [ Online]
+        // square_C[i] = sum([x^2 for x in centroids[i]])   [Offline]
+        // QC = matmul(Queries (Batch * Dim), Centroids^T (Dim * cluster_num)) [ Online] [cuBLAS]
+        // Dist[i][j] = sqrt(square_Q[i] + square_C[j] - 2 * QC[i][j])
     }
 }; // class juno_core
 
