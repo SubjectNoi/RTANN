@@ -39,13 +39,14 @@ extern "C" __global__ void __miss__ms() {
 
 extern "C" __global__ void __anyhit__ah() {
     const uint3 idx = optixGetLaunchIndex();
-    const uint3 dim = optixGetLaunchDimensions();
-    const float3 ray_orig = optixGetWorldRayOrigin();
-    const float3 ray_dir = optixGetWorldRayDirection();
-    const float t = optixGetRayTmax();
+    // const uint3 dim = optixGetLaunchDimensions();
+    // const float3 ray_orig = optixGetWorldRayOrigin();
+    // const float3 ray_dir = optixGetWorldRayDirection();
+    // const float t = optixGetRayTmax();
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
-    htData->prim_hit[prim_idx>>1] = HIT_MAGIC_NUMBER;
+    // htData->prim_hit[prim_idx>>1] = 114514;
+    // printf("Hit!: %d\n", idx.x);
     optixIgnoreIntersection();
 }
 

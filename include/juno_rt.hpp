@@ -9,10 +9,10 @@ struct Params {
 };
 
 struct RayGenData {
-    float3 cam_eye;
-    float3 camera_u, camera_v, camera_w;
+    // float3 cam_eye;
+    // float3 camera_u, camera_v, camera_w;
     float3* ray_origin;
-    unsigned int* ray_hit;
+    // unsigned int* ray_hit;
 };
 
 struct MissData {
@@ -51,11 +51,15 @@ private:
 
     OptixTraversableHandle          gas_handle;
     CUdeviceptr                     d_gas_output_buffer;
+    CUdeviceptr                     d_params;
     OptixAccelBuildOptions          accel_options       = {};
 
     OptixPipeline                   pipeline            = nullptr;
     OptixShaderBindingTable         sbt                 = {};
     char                            log[2048];
+
+    float3*                         d_ray_origin;
+    Params                          params;
 public:
     juno_rt() {
         options.logCallbackFunction = &context_log_cb;
@@ -64,6 +68,7 @@ public:
         OPTIX_CHECK(optixDeviceContextCreate(cuCtx, &options, &context));
         accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin), sizeof(float3) * 64));
     }
 
     void constructBVHforLabelWithRadius(int _label, T** _search_points, int* _search_points_labels, int _N, int _D, T** _stat, T _radius, METRIC _metric) {
@@ -80,7 +85,8 @@ public:
         switch (_metric) {
             case METRIC_L2: {
                 M = 2;
-                int dim_pair = _D / M, hitable_num = point_index_of_label.size();
+                int dim_pair = _D / M, hitable_num = point_index_of_label.size(); // @TODO: No hit are reported in Hit Shader, may be there is too many primitives,
+                                                                                  // Change to 16 you will get hit report, while the time is bigger bigger bigger.
                 num_vertices = hitable_num * TRIANGLE_PER_HITABLE * dim_pair;
                 vertices = new float3[num_vertices];
                 for (int d = 0; d < dim_pair; d++) {
@@ -241,7 +247,15 @@ public:
                                                     1
                                                     ));
 
-                // RayGen Sbt should be binded RUNTIME
+                // data of d_ray_origin should be feed runtime.
+                CUdeviceptr raygen_record;
+                size_t raygen_record_size = sizeof(RayGenSbtRecord);
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&raygen_record), raygen_record_size));
+                RayGenSbtRecord rg_sbt;
+                rg_sbt.data.ray_origin = d_ray_origin;
+                OPTIX_CHECK(optixSbtRecordPackHeader(raygen_prog_group, &rg_sbt));
+                CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(raygen_record), &rg_sbt, raygen_record_size, cudaMemcpyHostToDevice));
+                sbt.raygenRecord = raygen_record;
 
                 CUdeviceptr miss_record;
                 size_t miss_record_size = sizeof(MissSbtRecord);
@@ -266,6 +280,11 @@ public:
                 sbt.hitgroupRecordBase = hitgroup_record;
                 sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
                 sbt.hitgroupRecordCount = 1; 
+
+
+                params.handle = gas_handle;
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(Params)));
+                CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, sizeof(Params), cudaMemcpyHostToDevice));
                 break;
             }
             case METRIC_MIPS:
@@ -281,8 +300,20 @@ public:
 
     }
 
+    void setRayOrigin(float3* ray_origin, int size) {
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_ray_origin), ray_origin, sizeof(float3) * size, cudaMemcpyHostToDevice));
+    }
+
     OptixPipeline& getOptixPipeline() {
         return pipeline;
+    }
+
+    CUdeviceptr getDparams() {
+        return d_params;
+    }
+
+    OptixShaderBindingTable* getSBT() {
+        return &sbt;
     }
 }; // class juno_rt
 

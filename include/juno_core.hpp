@@ -35,16 +35,18 @@ private:
 
     // BVH dict
     std::map<int, juno_rt<T>*> bvh_dict;
+    CUstream    stream;
      
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
-              T _radius=0.3,
+              T _radius=1.0,
               bool _use_pq=false, 
               int _coarse_grained_cluster_num=100, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
     {
+        CUDA_CHECK(cudaStreamCreate(&stream));
         dataset_dir = _dataset_dir;
         radius = _radius;
         switch (ds) {
@@ -116,7 +118,7 @@ public:
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             bvh_dict[c] = new juno_rt<T>();
             bvh_dict[c]->constructBVHforLabelWithRadius(c, search_points, search_points_labels, N, D, stat, radius, metric);
-            break;
+            // break;
         }
     }
 
@@ -207,6 +209,31 @@ public:
         }
         gettimeofday(&ed, NULL);
         elapsed("Coarse Grained Clustering", st, ed);
+
+        gettimeofday(&st, NULL);
+
+        float3* ray_origins = new float3[query_size * D / 2];
+        for (int q = 0; q < query_size; q++) {
+            for (int d = 0; d < D; d+=2) {
+                float x = 1.0 * tmp[q][d], y = 1.0 * tmp[q][d + 1];
+                ray_origins[q * (D >> 1) + (d >> 1)] = make_float3(x, y, 1.0 * (d >> 1) + 0.5);
+            }
+        }
+        for (int i = 0; i < query_size; i++) {
+            bvh_dict[selected_centroids[i]]->setRayOrigin(ray_origins + i * 64, 64);
+        }
+        for (int i = 0; i < query_size; i++) {
+            auto pipeline = bvh_dict[selected_centroids[i]]->getOptixPipeline();
+            auto d_param = bvh_dict[selected_centroids[i]]->getDparams();
+            auto sbt = bvh_dict[selected_centroids[i]]->getSBT();
+            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, 64, 1, 1));
+            // @TODO: 1. can't get correct hit report with correct primitive number
+            //        2. Though we can, the time will be 2ms for query=100, QPS is 50000, bad.
+        }
+        CUDA_SYNC_CHECK();
+        dbg(query_size);
+        gettimeofday(&ed, NULL);
+        elapsed("Ray Tracing Intersection Test", st, ed);
     }
 }; // class juno_core
 
