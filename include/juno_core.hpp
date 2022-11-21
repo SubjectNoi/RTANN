@@ -16,7 +16,6 @@ private:
     // dataset property
     int         N;
     int         D;
-    int         Q;
     METRIC      metric;
 
     // juno impl property
@@ -27,8 +26,9 @@ private:
     // data
     T**         search_points;
     T**         cluster_centroids;
-    T**         queries;
-    T*          square_C;
+    T*          cluster_centroids_flatten;
+    T*          square_C;               // [ Offline]: coarse_grained_cluster_num * D
+    T*          square_Q;               // [  Online]: query_batch_size * D
     int*        search_points_labels;
     T           radius;
     T**         stat;
@@ -51,7 +51,6 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
-                Q = 10000;
                 metric = METRIC_L2;
                 break;
             case SIFT1B:
@@ -78,21 +77,20 @@ public:
         read_search_points<T>((dataset_dir + "search_points").c_str(), search_points, N, D);
 
         cluster_centroids = new T* [coarse_grained_cluster_num];
+        cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
         for (int i = 0; i < coarse_grained_cluster_num; i++) cluster_centroids[i] = new T[D];
         read_cluster_centroids<T>((dataset_dir + "cluster_centroids").c_str(), cluster_centroids, coarse_grained_cluster_num, D);
         square_C = new T[coarse_grained_cluster_num];
         for (int i = 0; i < coarse_grained_cluster_num; i++) {
-            T res = 0.0
+            T res = 0.0;
             for (int j = 0; j < D; j++) {
                 res += cluster_centroids[i][j] * cluster_centroids[i][j];
+                cluster_centroids_flatten[i * D + j] = cluster_centroids[i][j];
             }
             square_C[i] = res;
         }
-
         search_points_labels = new int[N];
         read_search_points_labels((dataset_dir + "search_points_labels").c_str(), search_points_labels, N);
-        
-        queries = new T*[]
 
         stat = new T*[D];
         for (int i = 0; i < D; i++) {
@@ -110,7 +108,6 @@ public:
         if (use_pq == true) {
             // TODO: Load codebook and mapping(pts, codebook_entries).
         }
-        
         dbg("Finish Reading Dataset and Cluster Info.");
     }
 
@@ -123,13 +120,93 @@ public:
         }
     }
 
-    void serveQueryBatch() {
-        ker();
+    void serveQueryBatch(juno_query_batch<T>* _query_batch) {
         // square_Q[0 : Batch - 1], square_C[0 : cluster_num - 1]
         // square_Q[i] = sum([x^2 for x in     query[i]])   [ Online]
         // square_C[i] = sum([x^2 for x in centroids[i]])   [Offline]
         // QC = matmul(Queries (Batch * Dim), Centroids^T (Dim * cluster_num)) [ Online] [cuBLAS]
         // Dist[i][j] = sqrt(square_Q[i] + square_C[j] - 2 * QC[i][j])
+
+        struct timeval st, ed;
+        gettimeofday(&st, NULL);
+        T** tmp = _query_batch->getQueryData();
+        T* tmp_flatten = _query_batch->getFlattenQueryData();
+        int query_size = _query_batch->getQuerySize();
+        square_Q = new T[query_size];
+        T** QC;
+        T* QC_flatten;
+        QC = new T*[query_size];
+        int *selected_centroids = new int[query_size];
+        QC_flatten = new T[query_size * coarse_grained_cluster_num];
+        for (int i = 0; i < query_size; i++) QC[i] = new T[coarse_grained_cluster_num];
+        for (int q = 0; q < query_size; q++) {
+            T res = 0.0;
+            for (int d = 0; d < D; d++) {
+                res += tmp[q][d] * tmp[q][d];
+            }
+            square_Q[q] = res;
+        }
+        
+        // for (int i = 0; i < query_size; i++) {
+        //     for (int j = 0; j < coarse_grained_cluster_num; j++) {
+        //         QC[i][j] = 0.0f;
+        //         for (int k = 0; k < D; k++) {
+        //             QC[i][j] += tmp[i][k] * cluster_centroids[j][k];
+        //         }
+        //     }
+        // }
+#if COARSE_GRAIN_CLUSTER_USE_GPU == 1
+        // Don't
+        // Disaster
+#else
+        
+        if (typeid(T) == typeid(float)) {
+            // export OPENBLAS_NUM_THREADS=16, ~0.35ms
+            cblas_sgemm(CblasRowMajor, 
+                        CblasNoTrans, 
+                        CblasTrans,
+                        query_size,
+                        coarse_grained_cluster_num,
+                        D,
+                        1.0f,
+                        tmp_flatten, 
+                        D, 
+                        cluster_centroids_flatten,
+                        D, 
+                        0.0f,
+                        QC_flatten, 
+                        coarse_grained_cluster_num);
+        }
+        else if (typeid(T) == typeid(double)) {
+            // cblas_dgemm(CblasRowMajor, 
+            //             CblasNoTrans, 
+            //             CblasTrans,
+            //             query_size,
+            //             coarse_grained_cluster_num,
+            //             D,
+            //             1.0f,
+            //             tmp_flatten, 
+            //             D, 
+            //             cluster_centroids_flatten,
+            //             D, 
+            //             0.0f,
+            //             QC_flatten, 
+            //             coarse_grained_cluster_num);
+        }
+#endif
+        for (int i = 0; i < query_size; i++) {
+            int min = 1e10, id = -1;
+            for (int j = 0; j < coarse_grained_cluster_num; j++) {
+                QC[i][j] = sqrt(square_C[j] + square_Q[i] - 2 * QC_flatten[i * coarse_grained_cluster_num + j]);
+                if (QC[i][j] < min) {
+                    min = QC[i][j];
+                    id = j;
+                }
+            }
+            selected_centroids[i] = id;
+        }
+        gettimeofday(&ed, NULL);
+        elapsed("Coarse Grained Clustering", st, ed);
     }
 }; // class juno_core
 

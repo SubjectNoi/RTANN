@@ -9,6 +9,9 @@
 #include <map>
 #include <algorithm>
 #include <numeric>
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <optix.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
@@ -20,10 +23,12 @@
 #include <sutil/Trackball.h>
 #include "dbg.h"
 #include "math.h"
+#include "cblas.h"
+#include <sys/time.h>
 
 #define TRIANGLE_PER_HITABLE 6
 #define HIT_MAGIC_NUMBER 114514
-
+#define COARSE_GRAIN_CLUSTER_USE_GPU 0
 enum RT_MODE {
     QUERY_AS_RAY = 0,
     QUERY_AS_TRIANGLE = 1,
@@ -45,6 +50,20 @@ enum DATASET {
     CUSTOM = 4,
     DATASET_LEN = 5,
 };
+
+void elapsed(const char* evt, struct timeval st, struct timeval ed) {
+    float res = (1000000.0 * (ed.tv_sec - st.tv_sec) + 1.0 * (ed.tv_usec - st.tv_usec));
+    printf("[%32s]: %010.6fms\n", evt, res / 1000.0);
+}
+
+template <typename T>
+T L2Dist(T* x, T* y, int D) {
+    T res = 0.0;
+    for (int i = 0; i < D; i++) {
+        res += (x[i] - y[i]) * (x[i] - y[i]);
+    }
+    return sqrt(res);
+}
 
 template <typename T>
 void read_search_points(const char* path, T** _search_points, int _N, int _D) {
@@ -77,7 +96,15 @@ void read_search_points_labels(const char* path, int* _search_points_labels, int
 }
 
 template <typename T>
-void read_queries(const char*, T**);
+void read_queries(const char* path, T** _queries, int _Q, int _D) {
+    std::ifstream fread_queries(path, std::ios::in);
+    for (int q = 0; q < _Q; q++) {
+        for (int d = 0; d < _D; d++) {
+            fread_queries >> _queries[q][d];
+        }
+    }
+    fread_queries.close();
+}
 
 void read_ground_truth(const char*, int**);
 
