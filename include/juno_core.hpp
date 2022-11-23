@@ -25,6 +25,7 @@ private:
 
     // data
     T**         search_points;
+    T*          search_points_flatten;
     T**         cluster_centroids;
     T*          cluster_centroids_flatten;
     T*          square_C;               // [ Offline]: coarse_grained_cluster_num * D
@@ -75,8 +76,14 @@ public:
         
         dbg("Begin Reading Dataset and Cluster Info.");
         search_points = new T* [N];
+        search_points_flatten = new T[N * D];
         for (int i = 0; i < N; i++) search_points[i] = new T[D];
         read_search_points<T>((dataset_dir + "search_points").c_str(), search_points, N, D);
+        for (int n = 0; n < N; n++) {
+            for (int d = 0; d < D; d++) {
+                search_points_flatten[n * D + d] = search_points[n][d];
+            }
+        }
 
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
@@ -229,11 +236,16 @@ public:
             OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, 64, 1, 1));
             // @TODO: 1. can't get correct hit report with correct primitive number
             //        2. Though we can, the time will be 2ms for query=100, QPS is 50000, bad.
+            // break;
         }
         CUDA_SYNC_CHECK();
         dbg(query_size);
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing Intersection Test", st, ed);
+    }
+
+    void plotDataset(juno_query_total<T>* query_total) {
+        plotQueryWithDensity(search_points_flatten, query_total->getQueryDataFlatten(), query_total->getaGroundTruthFlatten() ,N, query_total->getQueryAmount(), D);
     }
 }; // class juno_core
 

@@ -106,6 +106,14 @@ void read_queries(const char* path, T** _queries, int _Q, int _D) {
     fread_queries.close();
 }
 
-void read_ground_truth(const char*, int**);
+void read_ground_truth(const char* path, int** _ground_truth, int _Q) {
+    std::ifstream fread_ground_truth(path, std::ios::in);
+    for (int q = 0; q < _Q; q++) {
+        for (int gt = 0; gt < 100; gt++) {
+            fread_ground_truth >> _ground_truth[q][gt];
+        }
+    }
+    fread_ground_truth.close();
+}
 
 #endif

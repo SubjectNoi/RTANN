@@ -14,6 +14,9 @@ private:
     std::string     dataset_dir;
 
     T**             queries;
+    T*              queries_flatten;
+    int**           ground_truth;
+    int*            ground_truth_flatten;
     int             Q;
     int             D;
     METRIC          metric;
@@ -47,8 +50,24 @@ public:
         }
         dbg("Beginning Reading Query ...");
         queries = new T* [Q];
+        queries_flatten = new T[Q * D];
         for (int i = 0; i < Q; i++) queries[i] = new T[D];
         read_queries((dataset_dir + "queries").c_str(), queries, Q, D);
+        for (int q = 0; q < Q; q++) {
+            for (int d = 0; d < D; d++) {
+                queries_flatten[q * D + d] = queries[q][d];
+            }
+        }
+
+        ground_truth = new int*[Q];
+        ground_truth_flatten = new int[Q * 100];
+        for (int i = 0; i < Q; i++) ground_truth[i] = new int[100];
+        read_ground_truth((dataset_dir + "ground_truth").c_str(), ground_truth, Q);
+        for (int q = 0; q < Q; q++) {
+            for (int gt = 0; gt < 100; gt++) {
+                ground_truth_flatten[q * 100 + gt] = ground_truth[q][gt];
+            }
+        }
         dbg("Finished Reading Query ...");
     }
 
@@ -57,6 +76,26 @@ public:
             auto query_batch = new juno_query_batch<T>(i, _size, D, queries, i * _size);
             query_queue.push_back(query_batch);
         }
+    }
+
+    T** getQueryData() {
+        return queries;
+    }
+
+    T* getQueryDataFlatten() {
+        return queries_flatten;
+    }
+
+    int** getGroundTruth() {
+        return ground_truth;
+    }
+
+    int* getaGroundTruthFlatten() {
+        return ground_truth_flatten;
+    }
+
+    int getQueryAmount() {
+        return Q;
     }
 }; // class juno_query
 
