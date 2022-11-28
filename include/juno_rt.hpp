@@ -60,6 +60,9 @@ private:
 
     float3*                         d_ray_origin;
     Params                          params;
+    unsigned int*                   d_hit;
+    int                             hitable_num;
+    int                             dim_pair;
 public:
     juno_rt() {
         options.logCallbackFunction = &context_log_cb;
@@ -75,7 +78,6 @@ public:
         float3* vertices;
         int num_vertices;
         std::vector <int> point_index_of_label;
-        point_index_of_label.clear();
         for (int i = 0; i < _N; i++) {
             if (_search_points_labels[i] == _label) {
                 point_index_of_label.push_back(i);
@@ -85,18 +87,18 @@ public:
         switch (_metric) {
             case METRIC_L2: {
                 M = 2;
-                int dim_pair = _D / M, hitable_num = point_index_of_label.size(); // @TODO: No hit are reported in Hit Shader, may be there is too many primitives,
-                                                                                  // Change to 16 you will get hit report, while the time is bigger bigger bigger.
+                dim_pair = _D / M;
+                hitable_num = point_index_of_label.size(); 
                 num_vertices = hitable_num * TRIANGLE_PER_HITABLE * dim_pair;
                 vertices = new float3[num_vertices];
                 for (int d = 0; d < dim_pair; d++) {
                     T a = _stat[d*2][1], b = _stat[d*2+1][1];
                     T factor = sqrt(a * a + b * b);
                     // float factor = std::sqrt(_stat[d << 1][1] * _stat[d << 1][1] + _stat[d << 1 + 1][1] * _stat[d << 1 + 1][1]);
-                    _radius *= factor;
+                    _radius = 0.2 * factor;
                     for (int n = 0; n < hitable_num; n++) {
-                        T x = _search_points[point_index_of_label[n]][d << 1];
-                        T y = _search_points[point_index_of_label[n]][d << 1 + 1];
+                        T x = _search_points[point_index_of_label[n]][(d << 1)];
+                        T y = _search_points[point_index_of_label[n]][(d << 1) + 1];
                         float3 v1 = make_float3(x - _radius, y - _radius, 1.0 * d + 1);
                         float3 v2 = make_float3(x - _radius, y + _radius, 1.0 * d + 1);
                         float3 v3 = make_float3(x + _radius, y + _radius, 1.0 * d + 1);
@@ -105,14 +107,14 @@ public:
                         float3 v6 = make_float3(x + _radius, y - _radius, 1.0 * d + 1);
                         int base_idx = d * hitable_num * TRIANGLE_PER_HITABLE + n * TRIANGLE_PER_HITABLE;
                         vertices[base_idx + 0] = v1;
-                        vertices[base_idx + 0] = v2;
-                        vertices[base_idx + 0] = v3;
-                        vertices[base_idx + 0] = v4;
-                        vertices[base_idx + 0] = v5;
-                        vertices[base_idx + 0] = v6;
+                        vertices[base_idx + 1] = v2;
+                        vertices[base_idx + 2] = v3;
+                        vertices[base_idx + 3] = v4;
+                        vertices[base_idx + 4] = v5;
+                        vertices[base_idx + 5] = v6;
                     }
                 }
-                CUdeviceptr d_vertices = 0;
+                CUdeviceptr d_vertices;
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_vertices), num_vertices * sizeof(float3)));
                 CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_vertices), vertices, num_vertices * sizeof(float3), cudaMemcpyHostToDevice));
 
@@ -267,9 +269,9 @@ public:
                 sbt.missRecordBase = miss_record;
                 sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
                 sbt.missRecordCount = 1;  
-
-                unsigned int *d_hit, *h_hit;
-                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit), sizeof(unsigned int) * hitable_num * dim_pair));
+                
+                int d_hit_size = hitable_num * dim_pair;
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit), sizeof(unsigned int) * d_hit_size));
                 CUdeviceptr hitgroup_record;
                 size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
@@ -280,7 +282,6 @@ public:
                 sbt.hitgroupRecordBase = hitgroup_record;
                 sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
                 sbt.hitgroupRecordCount = 1; 
-
 
                 params.handle = gas_handle;
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(Params)));
@@ -314,6 +315,18 @@ public:
 
     OptixShaderBindingTable* getSBT() {
         return &sbt;
+    }
+
+    unsigned int* getPrimitiveHit() {
+        return d_hit;
+    }
+
+    OptixTraversableHandle& getGasHandle() {
+        return gas_handle;
+    }
+
+    int getHitableNum() {
+        return hitable_num * dim_pair;
     }
 }; // class juno_rt
 

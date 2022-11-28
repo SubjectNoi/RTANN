@@ -6,8 +6,8 @@ int main(int argc, char** argv) {
     juno::juno_core<float> server(path, SIFT1M);
     juno::juno_query_total<float> query(path, SIFT1M);
     server.plotDataset(&query);
-    // query.generateQueryBatch(100);
+    // query.generateQueryBatch(1);
     // server.setupBVHDict();
-    // server.serveQueryBatch(query.query_queue[19]);
+    // server.serveQueryBatch(query.query_queue[0]);
     return 0;
 }

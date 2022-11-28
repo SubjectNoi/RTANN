@@ -13,28 +13,25 @@ extern "C" __global__ void __raygen__rg() {
     const float3 direction = make_float3(0.0f, 0.0f, 1.0f);
     const RayGenData* rgData = (RayGenData*)optixGetSbtDataPointer();
     const float3 origin = rgData->ray_origin[idx.x];
-    unsigned int hit;
-    unsigned int hit_primitive_id = 0;
     // printf("Ray:%d Generated, Origin:(%f,%f,%f)\n", idx.x, origin.x, origin.y, origin.z);
     optixTrace(params.handle, 
                origin, 
                direction, 
                0.0f, 
-               0.75f, 
+               0.6f, 
                0.0f, 
                OptixVisibilityMask(1), 
                OPTIX_RAY_FLAG_NONE, 
                0, 
                0, 
-               0,
-               hit,
-               hit_primitive_id
+               0
               );
 }
 
 extern "C" __global__ void __miss__ms() {
     const uint3 idx = optixGetLaunchIndex();
     const uint3 dim = optixGetLaunchDimensions();
+    // printf("Miss!: %d\n", idx.x);
 }
 
 extern "C" __global__ void __anyhit__ah() {
@@ -46,7 +43,8 @@ extern "C" __global__ void __anyhit__ah() {
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
     // htData->prim_hit[prim_idx>>1] = 114514;
-    // printf("Hit!: %d\n", idx.x);
+    // printf("Hit!: %d : %d\n", idx.x, prim_idx / 128);
+    htData->prim_hit[prim_idx / 2] = 114514;
     optixIgnoreIntersection();
 }
 

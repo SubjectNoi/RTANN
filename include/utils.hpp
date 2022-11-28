@@ -72,6 +72,7 @@ void read_search_points(const char* path, T** _search_points, int _N, int _D) {
         for (int d = 0; d < _D; d++) {
             fread_search_points >> _search_points[n][d];
         }
+        fread_search_points.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
     fread_search_points.close();
 }
