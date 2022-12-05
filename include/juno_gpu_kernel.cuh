@@ -13,7 +13,7 @@
 #include <sutil/Trackball.h>
 namespace juno {
 
-void plotQueryWithDensity(float* _search_points, float* _query, int* _ground_truth, int _N, int _Q, int _D);
+void plotQueryWithDensity(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C);
 
 }; // namespace juno
 

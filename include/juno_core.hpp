@@ -267,7 +267,7 @@ public:
     }
 
     void plotDataset(juno_query_total<T>* query_total) {
-        plotQueryWithDensity(search_points_flatten, cluster_centroids_flatten, search_points_labels, query_total->getQueryDataFlatten(), query_total->getaGroundTruthFlatten() ,N, query_total->getQueryAmount(), D, coarse_grained_cluster_num);
+        plotQueryWithDensity(search_points_flatten, query_total->getQueryDataFlatten(), cluster_centroids_flatten, search_points_labels, query_total->getaGroundTruthFlatten() , N, query_total->getQueryAmount(), D, coarse_grained_cluster_num);
     }
 }; // class juno_core
 
