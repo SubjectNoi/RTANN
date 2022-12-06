@@ -241,28 +241,28 @@ public:
             //        2. Though we can, the time will be 2ms for query=100, QPS is 50000, bad.
             // break;
             CUDA_SYNC_CHECK();
-            auto device_hit = bvh_dict[selected_centroids[i]]->getPrimitiveHit();
-            int hn = bvh_dict[selected_centroids[i]]->getHitableNum();
-            CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_hit), sizeof(unsigned int) * hn));
-            CUDA_CHECK(cudaMemcpy(h_hit, reinterpret_cast<void*>(device_hit), sizeof(unsigned int) * hn, cudaMemcpyDeviceToHost));
-            std::vector <int> candidate_id;
-            candidate_id.clear();
-            int g_cnt = 0;
-            for (int x = 0; x < hn / 64; x++) {
-                int cnt = 0;
-                for (int y = 0; y < 64; y++) {
-                    if (h_hit[x * 64 + y] == 114514) {
-                        cnt ++;
-                    }
-                }
-                std::cout << x << ", " << cnt << std::endl;
-            }
+            // auto device_hit = bvh_dict[selected_centroids[i]]->getPrimitiveHit();
+            // int hn = bvh_dict[selected_centroids[i]]->getHitableNum();
+            // CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_hit), sizeof(unsigned int) * hn));
+            // CUDA_CHECK(cudaMemcpy(h_hit, reinterpret_cast<void*>(device_hit), sizeof(unsigned int) * hn, cudaMemcpyDeviceToHost));
+            // std::vector <int> candidate_id;
+            // candidate_id.clear();
+            // int g_cnt = 0;
+            // for (int x = 0; x < hn / 64; x++) {
+            //     int cnt = 0;
+            //     for (int y = 0; y < 64; y++) {
+            //         if (h_hit[x * 64 + y] == 114514) {
+            //             cnt ++;
+            //         }
+            //     }
+            //     std::cout << x << ", " << cnt << std::endl;
+            // }
             
 
         }
         // dbg(query_size);
         gettimeofday(&ed, NULL);
-        // elapsed("Ray Tracing Intersection Test", st, ed);
+        elapsed("Ray Tracing Intersection Test", st, ed);
 
     }
 
