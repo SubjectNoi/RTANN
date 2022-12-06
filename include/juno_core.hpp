@@ -15,6 +15,7 @@ private:
 
     // dataset property
     int         N;
+    int         M;
     int         D;
     METRIC      metric;
 
@@ -25,6 +26,7 @@ private:
 
     // data
     T**         search_points;
+    T*          search_points_flatten;
     T**         cluster_centroids;
     T*          cluster_centroids_flatten;
     T*          square_C;               // [ Offline]: coarse_grained_cluster_num * D
@@ -40,12 +42,13 @@ private:
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
-              T _radius=1.0,
+              T _radius=0.3,
               bool _use_pq=false, 
               int _coarse_grained_cluster_num=100, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
     {
+        M = 2;
         CUDA_CHECK(cudaStreamCreate(&stream));
         dataset_dir = _dataset_dir;
         radius = _radius;
@@ -75,8 +78,14 @@ public:
         
         dbg("Begin Reading Dataset and Cluster Info.");
         search_points = new T* [N];
+        search_points_flatten = new T[N * D];
         for (int i = 0; i < N; i++) search_points[i] = new T[D];
         read_search_points<T>((dataset_dir + "search_points").c_str(), search_points, N, D);
+        for (int n = 0; n < N; n++) {
+            for (int d = 0; d < D; d++) {
+                search_points_flatten[n * D + d] = search_points[n][d];
+            }
+        }
 
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
@@ -115,10 +124,10 @@ public:
 
     void setupBVHDict() {
         OPTIX_CHECK(optixInit());
-        for (int c = 0; c < coarse_grained_cluster_num; c++) {
+        for (int c = 19; c < coarse_grained_cluster_num; c++) {
             bvh_dict[c] = new juno_rt<T>();
             bvh_dict[c]->constructBVHforLabelWithRadius(c, search_points, search_points_labels, N, D, stat, radius, metric);
-            // break;
+            break;
         }
     }
 
@@ -128,7 +137,7 @@ public:
         // square_C[i] = sum([x^2 for x in centroids[i]])   [Offline]
         // QC = matmul(Queries (Batch * Dim), Centroids^T (Dim * cluster_num)) [ Online] [cuBLAS]
         // Dist[i][j] = sqrt(square_Q[i] + square_C[j] - 2 * QC[i][j])
-
+        unsigned int* h_hit;
         struct timeval st, ed;
         gettimeofday(&st, NULL);
         T** tmp = _query_batch->getQueryData();
@@ -208,9 +217,8 @@ public:
             selected_centroids[i] = id;
         }
         gettimeofday(&ed, NULL);
-        elapsed("Coarse Grained Clustering", st, ed);
+        // elapsed("Coarse Grained Clustering", st, ed);
 
-        gettimeofday(&st, NULL);
 
         float3* ray_origins = new float3[query_size * D / 2];
         for (int q = 0; q < query_size; q++) {
@@ -220,20 +228,46 @@ public:
             }
         }
         for (int i = 0; i < query_size; i++) {
-            bvh_dict[selected_centroids[i]]->setRayOrigin(ray_origins + i * 64, 64);
+            bvh_dict[selected_centroids[i]]->setRayOrigin(ray_origins + i * D / M, D / M);
         }
-        for (int i = 0; i < query_size; i++) {
+
+        gettimeofday(&st, NULL);
+        for (int i = 0; i < 1; i++) {
             auto pipeline = bvh_dict[selected_centroids[i]]->getOptixPipeline();
             auto d_param = bvh_dict[selected_centroids[i]]->getDparams();
             auto sbt = bvh_dict[selected_centroids[i]]->getSBT();
-            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, 64, 1, 1));
+            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, D / M * 512, 1, 1));
             // @TODO: 1. can't get correct hit report with correct primitive number
             //        2. Though we can, the time will be 2ms for query=100, QPS is 50000, bad.
+            // break;
+            CUDA_SYNC_CHECK();
+            // auto device_hit = bvh_dict[selected_centroids[i]]->getPrimitiveHit();
+            // int hn = bvh_dict[selected_centroids[i]]->getHitableNum();
+            // CUDA_CHECK(cudaMallocHost(reinterpret_cast<void**>(&h_hit), sizeof(unsigned int) * hn));
+            // CUDA_CHECK(cudaMemcpy(h_hit, reinterpret_cast<void*>(device_hit), sizeof(unsigned int) * hn, cudaMemcpyDeviceToHost));
+            // std::vector <int> candidate_id;
+            // candidate_id.clear();
+            // int g_cnt = 0;
+            // for (int x = 0; x < hn / 64; x++) {
+            //     int cnt = 0;
+            //     for (int y = 0; y < 64; y++) {
+            //         if (h_hit[x * 64 + y] == 114514) {
+            //             cnt ++;
+            //         }
+            //     }
+            //     std::cout << x << ", " << cnt << std::endl;
+            // }
+            
+
         }
-        CUDA_SYNC_CHECK();
-        dbg(query_size);
+        // dbg(query_size);
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing Intersection Test", st, ed);
+
+    }
+
+    void plotDataset(juno_query_total<T>* query_total) {
+        plotQueryWithDensity(search_points_flatten, query_total->getQueryDataFlatten(), cluster_centroids_flatten, search_points_labels, query_total->getaGroundTruthFlatten() , N, query_total->getQueryAmount(), D, coarse_grained_cluster_num);
     }
 }; // class juno_core
 

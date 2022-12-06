@@ -49,6 +49,14 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "__nullptr": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "cwctype": "cpp",
+        "fstream": "cpp",
+        "clocale": "cpp",
+        "deque": "cpp",
+        "map": "cpp",
+        "numbers": "cpp",
+        "numeric": "cpp",
+        "filesystem": "cpp"
     }
 }
