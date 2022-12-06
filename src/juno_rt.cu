@@ -12,7 +12,7 @@ extern "C" __global__ void __raygen__rg() {
     const uint3 dim = optixGetLaunchDimensions();
     const float3 direction = make_float3(0.0f, 0.0f, 1.0f);
     const RayGenData* rgData = (RayGenData*)optixGetSbtDataPointer();
-    const float3 origin = rgData->ray_origin[idx.x];
+    const float3 origin = rgData->ray_origin[idx.x / 512];
     // printf("Ray:%d Generated, Origin:(%f,%f,%f)\n", idx.x, origin.x, origin.y, origin.z);
     optixTrace(params.handle, 
                origin, 

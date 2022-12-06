@@ -89,7 +89,7 @@ public:
                 M = 2;
                 dim_pair = _D / M;
                 hitable_num = point_index_of_label.size(); 
-                // hitable_num = 2048;
+                // hitable_num = 256;
                 num_vertices = hitable_num * TRIANGLE_PER_HITABLE * dim_pair;
                 vertices = new float3[num_vertices];
                 for (int d = 0; d < dim_pair; d++) {
