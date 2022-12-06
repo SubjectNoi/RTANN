@@ -11,7 +11,7 @@ nlists = 2000
 Q = 100
 bias = 0
 thres = float(sys.argv[1])
-cluster_num = 8
+cluster_num = 16
 def L2(x, y):
     res = 0.0
     for i in range(len(x)):
