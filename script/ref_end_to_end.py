@@ -7,11 +7,11 @@ import time
 import xgboost as xgb
 d = 128
 n = 1000000
-nlists = 2000
+nlists = 100
 Q = 100
 bias = 0
 thres = float(sys.argv[1])
-cluster_num = 16
+cluster_num = 1
 def L2(x, y):
     res = 0.0
     for i in range(len(x)):
@@ -54,7 +54,7 @@ for i in range(len(xb[0])):
 #     for j in range(len(xb)):
 #         xb[j][i] /= stat[i][2]
 
-# kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=8).fit(xb)
+# kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=32).fit(xb)
 # xq = np.random.rand(q, d).astype("float32")
 xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
 xq = xq[bias:bias+Q]
@@ -74,7 +74,7 @@ gt = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs"
 # for lab in labels:
 #     print(lab, end=', ')
 # print(' ')
-ci = open("cluster_info_ncluster=2000").readlines()
+ci = open("cluster_info_ncluster=100").readlines()
 _cluster_centroids = ci[0:nlists]
 cluster_centroids = []
 for cc in _cluster_centroids:
@@ -103,7 +103,7 @@ for dim in range(d // 2):
 STDS = []
 MEANS = []
 MAXS = []
-# outlier = [98, 116, 185, 254, 462, 517, 626, 631, 636, 652, 662, 678, 704, 713, 721, 733, 746, 776, 820, 821, 847, 917]
+outlier = [98, 116, 185, 254, 462, 517, 626, 631, 636, 652, 662, 678, 704, 713, 721, 733, 746, 776, 820, 821, 847, 917]
 for q in range(Q):
     query = xq[q]
     STDS.append(np.std(query))
