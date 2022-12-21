@@ -6,6 +6,7 @@
 
 struct Params {
     OptixTraversableHandle handle;
+    int visibilityMask ;
 };
 
 struct RayGenData {
@@ -72,6 +73,8 @@ public:
         accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin), sizeof(float3) * 64));
+
+        // dbg (OPTIX_DEVICE_PROPERTY_LIMIT_NUM_BITS_INSTANCE_VISIBILITY_MASK) ;
     }
 
     void constructBVHforLabelWithRadius(int _label, T** _search_points, int* _search_points_labels, int _N, int _D, T** _stat, T _radius, METRIC _metric) {
@@ -86,6 +89,7 @@ public:
         int M;
         switch (_metric) {
             case METRIC_L2: {
+                // constructing 1st group of triangles
                 M = 2;
                 dim_pair = _D / M;
                 hitable_num = point_index_of_label.size(); 
@@ -119,6 +123,7 @@ public:
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_vertices), num_vertices * sizeof(float3)));
                 CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_vertices), vertices, num_vertices * sizeof(float3), cudaMemcpyHostToDevice));
 
+                // OptixBuild 1st group of triangles              
                 const uint32_t triangle_input_flags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
                 OptixBuildInput triangle_input = {};
                 triangle_input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -133,24 +138,106 @@ public:
                 CUdeviceptr d_temp_buffer_gas;
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_temp_buffer_gas), gas_buffer_sizes.tempSizeInBytes));
                 CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_gas_output_buffer), gas_buffer_sizes.outputSizeInBytes));
-                OPTIX_CHECK(optixAccelBuild(context, 0, &accel_options, &triangle_input, 1, d_temp_buffer_gas, gas_buffer_sizes.tempSizeInBytes, d_gas_output_buffer, gas_buffer_sizes.outputSizeInBytes, &gas_handle, nullptr, 0));
+                OptixTraversableHandle triangleHandle = 0 ;
+                OPTIX_CHECK(optixAccelBuild(context, 0, &accel_options, &triangle_input, 1, d_temp_buffer_gas, gas_buffer_sizes.tempSizeInBytes, d_gas_output_buffer, gas_buffer_sizes.outputSizeInBytes, &triangleHandle, nullptr, 0));
                 CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_temp_buffer_gas)));
                 CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_vertices)));
+
+                // construct 2nd group of triangles
+                float3* testVisibleMaskVertices = new float3[3];
+                testVisibleMaskVertices[0] = make_float3 (0, 0, 0) ;
+                testVisibleMaskVertices[1] = make_float3 (1, 0, 0) ;
+                testVisibleMaskVertices[2] = make_float3 (0, 1, 0) ;
+                CUdeviceptr d_testVertices;
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_testVertices), 3 * sizeof(float3)));
+                CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_testVertices), testVisibleMaskVertices, 3 * sizeof(float3), cudaMemcpyHostToDevice));
+
+                // OptixBuild 2nd group of triangles
+                OptixBuildInput test_triangle_input = {};
+                test_triangle_input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+                test_triangle_input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+                test_triangle_input.triangleArray.numVertices = static_cast<uint32_t>(3);
+                test_triangle_input.triangleArray.vertexBuffers = &d_testVertices;
+                test_triangle_input.triangleArray.flags = triangle_input_flags;
+                test_triangle_input.triangleArray.numSbtRecords = 1;
+
+                OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accel_options, &test_triangle_input, 1, &gas_buffer_sizes));
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_temp_buffer_gas), gas_buffer_sizes.tempSizeInBytes));
+                // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_gas_output_buffer), gas_buffer_sizes.outputSizeInBytes));
+                OptixTraversableHandle testTriangleHandle = 0 ;
+                OPTIX_CHECK(optixAccelBuild(context, 0, &accel_options, &test_triangle_input, 1, d_temp_buffer_gas, gas_buffer_sizes.tempSizeInBytes, d_gas_output_buffer, gas_buffer_sizes.outputSizeInBytes, &testTriangleHandle, nullptr, 0));
+                CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_temp_buffer_gas)));
+                CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_testVertices)));
+
+                // two groups of triangles as instances
+                // OptixAccelBuildOptions accelOptions = {};
+                OptixBuildInput buildInput ;
+                // memset(reinterpret_cast<void*>(buildInput), 0, sizeof (OptixBuildInput)) ;
+
+                // memset(reinterpret_cast<void*>(&accelOptions), 0, sizeof(OptixAccelBuildOptions));
+                // accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
+                // accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+                // accelOptions.motionOptions.numKeys = 0;
+
+                OptixInstance instances[2] ;
+
+                // 1st instance
+                OptixInstance* triangleInstance = &instances[0] ;
+                triangleInstance -> instanceId = 0;
+                // set instance visibilityMask
+                triangleInstance -> visibilityMask = 1;
+                triangleInstance -> sbtOffset = 0;
+                triangleInstance -> flags = OPTIX_INSTANCE_FLAG_NONE;
+                triangleInstance -> traversableHandle = triangleHandle ;
+
+                // 2nd instance
+                OptixInstance* testTriangleInstance = &instances[1] ;
+                testTriangleInstance -> instanceId = 1;
+                // set instance visibilityMask
+                testTriangleInstance -> visibilityMask = 2;
+                testTriangleInstance -> sbtOffset = 0;
+                testTriangleInstance -> flags = OPTIX_INSTANCE_FLAG_NONE;
+                testTriangleInstance -> traversableHandle = testTriangleHandle ;
+
+                
+                CUdeviceptr d_instance ;
+                CUDA_CHECK (cudaMalloc (reinterpret_cast<void**>(&d_instance), sizeof (OptixInstance) * 2)) ;
+                CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*>(d_instance), &instances, sizeof (OptixInstance) * 2, cudaMemcpyHostToDevice)) ;
+
+                // OptixBuild the whole handle
+                OptixBuildInputInstanceArray* instanceArray = &buildInput.instanceArray;
+                buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES ;
+                instanceArray -> instances = d_instance;
+                instanceArray -> numInstances = 2;
+
+                OptixAccelBufferSizes bufferSizes = {};
+                OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accel_options,
+                    &buildInput, 1, &bufferSizes));
+
+                CUdeviceptr d_output, d_temp;
+
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_output), bufferSizes.outputSizeInBytes));
+                CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_temp), bufferSizes.tempSizeInBytes));
+
+                OPTIX_CHECK(optixAccelBuild(context, 0,
+                    &accel_options, &buildInput, 1, d_temp,
+                    bufferSizes.tempSizeInBytes, d_output,
+                    bufferSizes.outputSizeInBytes, &gas_handle, nullptr, 0));
                 
                 OptixModule module = nullptr;
                 OptixModule triangle_module;
                 OptixModuleCompileOptions module_compile_options = {};
                 OptixPipelineCompileOptions pipeline_compile_options = {};
                 pipeline_compile_options.usesMotionBlur = false;
-                pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+                pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
                 pipeline_compile_options.numPayloadValues = 3;
                 pipeline_compile_options.numAttributeValues = 3;
                 pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
                 pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
-                pipeline_compile_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
+                pipeline_compile_options.usesPrimitiveTypeFlags = 0;
                 
                 std::string input;
-                std::ifstream file("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/src/juno_rt.optixir", std::ios::binary);
+                std::ifstream file("/home/wtni/RTANN/RTANN/src/juno_rt.optixir", std::ios::binary);
                 if (file.good()) {
                     std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
                     input.assign(buffer.begin(), buffer.end());
@@ -247,7 +334,7 @@ public:
                                                     direct_callable_stack_size_from_traversal, 
                                                     direct_callable_stack_size_from_state, 
                                                     continuation_satck_size, 
-                                                    1
+                                                    2
                                                     ));
 
                 // data of d_ray_origin should be feed runtime.
@@ -300,6 +387,11 @@ public:
                 break;
         }
 
+    }
+
+    void setVisibilityMask (int visibilityMask) {
+        // set Params visibilityMask = 1, i.e. true triangles
+        params.visibilityMask = visibilityMask ;
     }
 
     void setRayOrigin(float3* ray_origin, int size) {

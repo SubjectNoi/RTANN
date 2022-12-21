@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.19)
 project(RTANN)
 find_package(CUDA REQUIRED)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2 -mavx2 -pg -w")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O2 -mavx2 -pg -w")
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_86,code=sm_86;)
 set(OptiX_INSTALL_DIR /home/wtni/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64)
 set(OpenBLAS_INSTALL_DIR /home/wtni/OpenBLAS/build)

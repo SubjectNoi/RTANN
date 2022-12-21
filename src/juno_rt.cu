@@ -20,7 +20,7 @@ extern "C" __global__ void __raygen__rg() {
                0.0f, 
                0.6f, 
                0.0f, 
-               OptixVisibilityMask(1), 
+               OptixVisibilityMask(params.visibilityMask), // set ray visibility mask
                OPTIX_RAY_FLAG_NONE, 
                0, 
                0, 
@@ -43,7 +43,7 @@ extern "C" __global__ void __anyhit__ah() {
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
     // htData->prim_hit[prim_idx>>1] = 114514;
-    // printf("Hit!: %d : %d\n", idx.x, prim_idx / 128);
+    printf("Hit!: %d : %d\n", idx.x, prim_idx / 128);
     htData->prim_hit[prim_idx / 2] = 114514;
     optixIgnoreIntersection();
 }
@@ -54,7 +54,7 @@ extern "C" __global__ void __closesthit__ch() {
     const float3 ray_orig = optixGetWorldRayOrigin();
     const float3 ray_dir = optixGetWorldRayDirection();
     const float t = optixGetRayTmax();
-    // printf("Ray:%d Hit (Closest), whose origin is: (%f,%f,%f) --> (%f,%f,%f | %f)\n", idx.x, ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, t);
+    printf("Ray:%d Hit (Closest), whose origin is: (%f,%f,%f) --> (%f,%f,%f | %f)\n", idx.x, ray_orig.x, ray_orig.y, ray_orig.z, ray_dir.x, ray_dir.y, ray_dir.z, t);
     float3 hit_point = make_float3(ray_orig.x + t * ray_dir.x, ray_orig.y + t * ray_dir.y, ray_orig.z + t * ray_dir.z);
     // optixTrace(params.handle, 
     //     hit_point, 

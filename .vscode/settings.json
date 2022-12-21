@@ -57,6 +57,8 @@
         "map": "cpp",
         "numbers": "cpp",
         "numeric": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "queue": "cpp",
+        "stack": "cpp"
     }
 }

@@ -236,6 +236,8 @@ public:
             auto pipeline = bvh_dict[selected_centroids[i]]->getOptixPipeline();
             auto d_param = bvh_dict[selected_centroids[i]]->getDparams();
             auto sbt = bvh_dict[selected_centroids[i]]->getSBT();
+            // set ray visibility mask
+            bvh_dict[selected_centroids[i]] -> setVisibilityMask (2) ;
             OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, D / M * 512, 1, 1));
             // @TODO: 1. can't get correct hit report with correct primitive number
             //        2. Though we can, the time will be 2ms for query=100, QPS is 50000, bad.
