@@ -200,5 +200,68 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
     // }
 }
 
+float L2dist(float* a, float* b, int len) {
+    float res = 0.0f;
+    for (int i = 0; i < len; i++) {
+        res += (a[i] - b[i]) * (a[i] - b[i]);
+    }
+    res = sqrt(res);
+    return res;
+}
+
+void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat) {
+    float recalls = 0.0;
+    for (int q = 0; q < 1; q++) {
+        int selected_cluster = -1;
+        float L2 = 1e10;
+        for (int c = 0; c < _C; c++) {
+            float tmp = L2dist(_query + q * _D, _centroids + c * _D, _D);
+            if (tmp < L2) {
+                L2 = tmp;
+                selected_cluster = c;
+            }
+        }
+        std::vector <int> candidate;
+        for (int n = 0; n < _N; n++) {
+            if (_labels[n] == selected_cluster) {
+                candidate.push_back(n);
+            }
+        }
+        int P = candidate.size();
+        float factors[64] = {226.91, 226.292, 234.105, 245.577, 279.63, 236.516, 231.948, 269.431, 274.614, 244.002, 235.553, 258.38, 243.939, 237.857, 229.811, 229.819, 244.322, 226.982, 252.21, 246.903, 265.966, 238.008, 231.935, 249.658, 278.304, 241.357, 236.966, 259.187, 245.247, 245.449, 244.663, 229.863, 238.673, 245.904, 235.468, 238.296, 266.595, 246.564, 229.863, 245.392, 275.224, 245.247, 239.019, 254.136, 239.708, 236.212, 248.244, 244.125, 237.346, 247.491, 225.754, 225.657, 276.957, 235.85, 229.142, 265.548, 285.272, 237.186, 252.723, 263.139, 240.983, 220.048, 237.626, 236.326};
+        std::vector <std::pair<int, int>> candidate_with_cnt;
+        for (int p = 0; p < 16; p++) {
+            int cnt = 0;
+            for (int d = 0; d < _D; d+=2) {
+                float x1 = _search_points[candidate[p] * _D + d], y1 = _search_points[candidate[p] * _D + d + 1];
+                float x2 = _query[q * _D + d], y2 = _query[q * _D + d + 1];
+                // if (sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)) < 0.25 * factors[d / 2]) {
+                //     cnt ++;
+                // }
+                // if (max(abs(x2 - x1), abs(y2 - y1)) < 0.25 * factors[d / 2]) {
+                //     cnt ++;
+                // }
+                // std::cout << x1 << ", " << y1 << " || " << x2 << ", " << y2 << " || Dist: " << max(abs(x2 - x1), abs(y2 - y1)) << " " << ((max(abs(x2 - x1), abs(y2 - y1)) < 0.25 * factors[d / 2]) ? "Hit" : "Miss") << std::endl;
+                std::cout << ((max(abs(x2 - x1), abs(y2 - y1)) < 0.25 * factors[d / 2]) ? "Hit" : "Miss") << std::endl;
+            }
+            candidate_with_cnt.push_back(std::pair<int, int>(candidate[p], cnt));
+        }
+        for (auto && cwc : candidate_with_cnt) {
+            std::cout << cwc.first << " " << cwc.second << std::endl;
+        }
+        // sort(candidate_with_cnt.begin(), candidate_with_cnt.end(), [](std::pair<int, int> a, std::pair<int, int> b) { return a.second > b.second; });
+        // int recall = 0;
+        // for (int r = 0; r < 1000; r++) {
+        //     for (int gt = 0; gt < 100; gt++) {
+        //         if (candidate_with_cnt[r].first == _ground_truth[q * 100 + gt]) {
+        //             recall++;
+        //             break;
+        //         }
+        //     }
+        // }
+        // recalls += 1.0 * recall;
+    }
+    // std::cout << recalls / (1.0 * _Q) << std::endl;
+}
 
 }; // namespace juno

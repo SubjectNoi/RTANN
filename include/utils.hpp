@@ -25,14 +25,28 @@
 #include "math.h"
 #include "cblas.h"
 #include <sys/time.h>
+#include <assert.h>
+#include "juno_gpu_kernel.cuh"
 
 #define TRIANGLE_PER_HITABLE 6
 #define HIT_MAGIC_NUMBER 114514
 #define COARSE_GRAIN_CLUSTER_USE_GPU 0
+#define NLISTS_MAX 8
+#define PQ_DIM 2
+#define SCALE 0.9
+#define HIT_REC_PER_C 200
+#define QUERY_BATCH_MAX 10000
+
 enum RT_MODE {
     QUERY_AS_RAY = 0,
     QUERY_AS_TRIANGLE = 1,
     RT_MODE_LEN = 2,
+};
+
+enum PRIMITIVE_TYPE {
+    PRIMITIVE_TYPE_SPHERE = 0,
+    PRIMITIVE_TYPE_TRIANGLE = 1,
+    PRIMITIVE_TYPE_LEN = 2,
 };
 
 enum METRIC {
@@ -61,6 +75,16 @@ T L2Dist(T* x, T* y, int D) {
     T res = 0.0;
     for (int i = 0; i < D; i++) {
         res += (x[i] - y[i]) * (x[i] - y[i]);
+    }
+    return sqrt(res);
+}
+
+template <typename T>
+T L2Dist(std::vector<T> a, std::vector<T> b) {
+    T res = 0.0;
+    int D = a.size();
+    for (int i = 0; i < D; i++) {
+        res += (a[i] - b[i]) * (a[i] - b[i]);
     }
     return sqrt(res);
 }
@@ -116,5 +140,26 @@ void read_ground_truth(const char* path, int** _ground_truth, int _Q) {
     }
     fread_ground_truth.close();
 }
+
+template <typename T>
+void read_codebook_entry_labels(std::string path, T**** _codebook_entry, int*** _codebook_labels, int* _cluster_size, int _coarse_grained_cluster_num, int _PQ_entry, int _D, int _PQ_DIM=PQ_DIM) {
+    std::string placeholder, labels;
+    for (int c = 0; c < _coarse_grained_cluster_num; c++) {
+        for (int d = 0; d < _D / _PQ_DIM; d++) {
+            std::ifstream fread_codebook((path + "/codebook_cluster=" + std::to_string(c) + "_dim=" + std::to_string(d)).c_str(), std::ios::in);
+            for (int e = 0; e < _PQ_entry; e++) {
+                for (int m = 0; m < _PQ_DIM; m++) {
+                    fread_codebook >> _codebook_entry[c][d][e][m];
+                }
+            }
+            fread_codebook >> placeholder;
+            for (int l = 0; l < _cluster_size[c]; l++) {
+                fread_codebook >> _codebook_labels[c][d][l];
+            }
+            fread_codebook.close();
+        }
+    }
+}
+
 
 #endif
