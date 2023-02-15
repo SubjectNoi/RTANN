@@ -40,6 +40,8 @@ private:
     T**         stat;
     T****       codebook_entry;         // [C][D/M][E][M]
     int***      codebook_labels;        // [C][D/M][]
+    std::vector<int>*** inversed_codebook_map; // [C][D/M][32][]
+    
     std::map<int, std::vector<int>> points_cluster_mapping;
 
     // BVH dict
@@ -47,11 +49,11 @@ private:
     CUstream    stream;
     float factors[64] = {226.91, 226.292, 234.105, 245.577, 279.63, 236.516, 231.948, 269.431, 274.614, 244.002, 235.553, 258.38, 243.939, 237.857, 229.811, 229.819, 244.322, 226.982, 252.21, 246.903, 265.966, 238.008, 231.935, 249.658, 278.304, 241.357, 236.966, 259.187, 245.247, 245.449, 244.663, 229.863, 238.673, 245.904, 235.468, 238.296, 266.595, 246.564, 229.863, 245.392, 275.224, 245.247, 239.019, 254.136, 239.708, 236.212, 248.244, 244.125, 237.346, 247.491, 225.754, 225.657, 276.957, 235.85, 229.142, 265.548, 285.272, 237.186, 252.723, 263.139, 240.983, 220.048, 237.626, 236.326};
     
-     
+    unsigned int* hit_record;
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
-              T _radius=0.25,
+              T _radius=0.1,
               bool _use_pq=true, 
               int _coarse_grained_cluster_num=1000, 
               RT_MODE _rt_mode=QUERY_AS_RAY
@@ -86,7 +88,7 @@ public:
         use_pq = _use_pq;
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
-        
+        hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
         dbg("Begin Reading Dataset and Cluster Info.");
         search_points = new T* [N];
         search_points_flatten = new T[N * D];
@@ -176,7 +178,20 @@ public:
                 }
             }
             read_codebook_entry_labels(dataset_dir + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
-
+            inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
+            for (int c = 0; c < coarse_grained_cluster_num; c++) {
+                inversed_codebook_map[c] = new std::vector<int>* [D / M];
+                for (int d = 0; d < D / M; d++) {
+                    inversed_codebook_map[c][d] = new std::vector<int> [32];
+                    for (int e = 0; e < 32; e++) {
+                        for (int n = 0; n < cluster_size[c]; n++) {
+                            if (codebook_labels[c][d][n] == e) {
+                                inversed_codebook_map[c][d][e].push_back(n);
+                            }
+                        }
+                    }
+                }
+            }
         }
         dbg("Finish Reading Dataset and Cluster Info.");
     }
@@ -213,7 +228,9 @@ public:
         T** query_data = _query_batch->getQueryData();
         T* query_data_flatten = _query_batch->getFlattenQueryData();
         int query_size = _query_batch->getQuerySize();
+        int cluster_bias[1000] = {-1};
         std::vector<std::vector<int>> cluster_query_mapping;
+        std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
         float **L2mat = new float*[query_size];
         // Can be optimized with OpenBLAS
         for (int q = 0; q < query_size; q++) {
@@ -221,6 +238,8 @@ public:
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 L2mat[q][c] = L2Dist(query_data[q], cluster_centroids[c], D);
             }
+            std::vector <std::pair<int, int>> query_place_holder;
+            query_cluster_mapping.push_back(query_place_holder);
         }
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector<int> query_ids;
@@ -238,6 +257,7 @@ public:
                 return L2mat[q][a.first] < L2mat[q][b.first];
             });
             for (int nl = 0; nl < nlists; nl++) {
+                query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
             }
         }
@@ -247,10 +267,12 @@ public:
         gettimeofday(&st, NULL);
         // 2nd setting ray origins
         float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
-        int index_bias = 0;
+        int index_bias = 0, accum = 0;
         int cmax = 0;
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
+            cluster_bias[c] = accum;
             int query_of_cluster_c = cluster_query_mapping[c].size();
+            accum += query_of_cluster_c;
             cmax = std::max(cmax, query_of_cluster_c);
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
@@ -260,6 +282,7 @@ public:
                     ray_origin_whole[index_bias++] = make_float3(x, y, 1.0 * 2 * d);
                 }
             }
+
         }
         bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
         auto pipeline = bvh_dict[0]->getOptixPipeline();
@@ -269,6 +292,31 @@ public:
         CUDA_SYNC_CHECK();
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
+
+        gettimeofday(&st, NULL);
+        bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
+        for (int q = 0; q < query_size; q++) {
+            for (int nl = 0; nl < nlists; nl++) {
+                int tmp_cluster = query_cluster_mapping[q][nl].first;
+                int base_addr = cluster_bias[tmp_cluster] * D / M;
+                int stride = cluster_query_mapping[tmp_cluster].size();
+                std::unordered_map <int, int> point_counter_mapping;
+                for (int d = 0; d < D / M; d++) {
+                    for (int bit = 0; bit < 32; bit++) {
+                        if (hit_record[base_addr + d * stride] & (1 << bit) == 1) {
+                            for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
+                                point_counter_mapping[item] ++;
+                            }
+                        }
+                    }
+                    // printf("%08x%c", hit_record[base_addr + d * stride], (d % 16 == 15) ? '\n' : ' ');
+                }
+                // printf("\n");
+                // std::cout << "Cluster: " << query_cluster_mapping[q][nl].first << ", bias in cluster: " << query_cluster_mapping[q][nl].second << std::endl;
+            }
+        }
+        gettimeofday(&ed, NULL);
+        elapsed("Computing Hit Result", st, ed);
 
     }
 

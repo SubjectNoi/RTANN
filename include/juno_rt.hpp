@@ -90,6 +90,7 @@ public:
                                     T _r,
                                     METRIC _metric) 
     {
+        struct timeval st, ed;
         float3* centers;
         float* radius;
         dim_pair = _D / _M;
@@ -126,7 +127,10 @@ public:
         sphere_input.sphereArray.flags = sphere_input_flags;
         sphere_input.sphereArray.numSbtRecords = 1;
 
+        gettimeofday(&st, NULL);
         constructBVHTreeWithPrimitives(&sphere_input, PRIMITIVE_TYPE_SPHERE);
+        gettimeofday(&ed, NULL);
+        elapsed("Constructing BVH", st, ed);
         CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_centers)));
         CUDA_CHECK(cudaFree(reinterpret_cast<void*>(d_radius)));
     }
@@ -416,6 +420,10 @@ public:
 
     void setRayOrigin(float3* ray_origin, int size) {
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_ray_origin_whole), ray_origin, sizeof(float3) * size, cudaMemcpyHostToDevice));
+    }
+
+    void getRayHitRecord(unsigned int* hit_record, int size) {
+        CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned int) * size, cudaMemcpyDeviceToHost));
     }
 
     // static void initRayOriginArray(int Q, int D, int M, int _nlists) {
