@@ -53,12 +53,13 @@ private:
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
-              T _radius=0.1,
+              T _radius=0.25,
               bool _use_pq=true, 
               int _coarse_grained_cluster_num=1000, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
     {
+        // omp_set_num_threads(64);
         M = 2;
         CUDA_CHECK(cudaStreamCreate(&stream));
         dataset_dir = _dataset_dir;
@@ -232,7 +233,8 @@ public:
         std::vector<std::vector<int>> cluster_query_mapping;
         std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
         float **L2mat = new float*[query_size];
-        // Can be optimized with OpenBLAS
+        // Can be optimized with OpenBLAS        
+        // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
             L2mat[q] = new float[coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
@@ -241,6 +243,7 @@ public:
             std::vector <std::pair<int, int>> query_place_holder;
             query_cluster_mapping.push_back(query_place_holder);
         }
+        // #pragma omp parallel for
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector<int> query_ids;
             query_ids.clear();
@@ -295,6 +298,8 @@ public:
 
         gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
+        // omp_set_num_threads(128);
+        // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
             for (int nl = 0; nl < nlists; nl++) {
                 int tmp_cluster = query_cluster_mapping[q][nl].first;

@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <omp.h>
 #include <unordered_map>
 #include <algorithm>
 #include <numeric>
@@ -34,7 +35,7 @@
 #define COARSE_GRAIN_CLUSTER_USE_GPU 0
 #define NLISTS_MAX 8
 #define PQ_DIM 2
-#define SCALE 0.9
+#define SCALE 0.75
 #define HIT_REC_PER_C 200
 #define QUERY_BATCH_MAX 10000
 

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(RTANN)
 find_package(CUDA REQUIRED)
+find_package(OpenMP REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O2 -mavx2 -pg -w")
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_86,code=sm_86;)
@@ -19,4 +20,4 @@ link_directories(/usr/lib /usr/local/lib /usr/local/cuda/lib64)
 link_directories(${OpenBLAS_INSTALL_DIR}/lib)
 
 cuda_add_executable(main main.cpp src/juno_gpu_kernel.cu OPTIONS -arch=sm_86)
-target_link_libraries(main ${CUDA_cudadevrt_LIBRARY} openblas)
+target_link_libraries(main ${CUDA_cudadevrt_LIBRARY} openblas OpenMP::OpenMP_CXX)
