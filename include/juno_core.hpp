@@ -53,9 +53,9 @@ private:
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
-              T _radius=0.25,
-              bool _use_pq=true, 
               int _coarse_grained_cluster_num=1000, 
+              T _radius=0.15,
+              bool _use_pq=true, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
     {
@@ -82,6 +82,12 @@ public:
 
                 break;
             case CUSTOM:
+                N = 16;
+                D = 4;
+                Q = 1;
+                PQ_entry = 4;
+                metric = METRIC_L2;
+                break;
             default:
 
                 break;
@@ -105,7 +111,7 @@ public:
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
         for (int i = 0; i < coarse_grained_cluster_num; i++) cluster_centroids[i] = new T[D];
-        read_cluster_centroids<T>((dataset_dir + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
+        read_cluster_centroids<T>((dataset_dir + "parameter_0/" + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
         square_C = new T[coarse_grained_cluster_num];
         std::vector <T> centroid;
         for (int i = 0; i < coarse_grained_cluster_num; i++) {
@@ -178,7 +184,7 @@ public:
                     codebook_labels[c][d] = new int[cluster_size[c]];
                 }
             }
-            read_codebook_entry_labels(dataset_dir + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
+            read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 inversed_codebook_map[c] = new std::vector<int>* [D / M];
@@ -217,6 +223,7 @@ public:
 
     void buildJunoIndexWhole() {
         OPTIX_CHECK(optixInit());
+        std::remove("/var/tmp/OptixCache_zhliu/optix7cache.db");
         bvh_dict[0] = new juno_rt<T>(Q);
         bvh_dict[0]->constructCompleteBVHwithPQ(codebook_entry, coarse_grained_cluster_num, PQ_entry, D, M, stat, radius, metric);
     }
@@ -230,12 +237,17 @@ public:
         T* query_data_flatten = _query_batch->getFlattenQueryData();
         int query_size = _query_batch->getQuerySize();
         int cluster_bias[1000] = {-1};
+        // Record which queries fall into the cluster C
         std::vector<std::vector<int>> cluster_query_mapping;
+
+        // Record which clusters a query falls in
         std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
         float **L2mat = new float*[query_size];
+
         // Can be optimized with OpenBLAS        
         // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
+            // Calculate the L2-dist between every cluster centroids
             L2mat[q] = new float[coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 L2mat[q][c] = L2Dist(query_data[q], cluster_centroids[c], D);
@@ -243,7 +255,8 @@ public:
             std::vector <std::pair<int, int>> query_place_holder;
             query_cluster_mapping.push_back(query_place_holder);
         }
-        // #pragma omp parallel for
+
+        // Init 
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector<int> query_ids;
             query_ids.clear();
@@ -256,11 +269,17 @@ public:
             for (int d = 0; d < D; d++) {
                 query_vec.push_back(query_data[q][d]);
             }
+
+            // Sort by L2 distance
             std::sort(cluster_centroids_vec.begin(), cluster_centroids_vec.end(), [q, L2mat](const std::pair<int, std::vector <T>>& a, const std::pair<int, std::vector <T>>& b) {
                 return L2mat[q][a.first] < L2mat[q][b.first];
             });
+
+            // Select nlists cluster
             for (int nl = 0; nl < nlists; nl++) {
+                // Record a pair, stands for: <the cluster c this query q use, the position this query q falls in the cluster c>
                 query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
+                // Push query q into the query_list of cluster c
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
             }
         }
@@ -271,21 +290,25 @@ public:
         // 2nd setting ray origins
         float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
         int index_bias = 0, accum = 0;
-        int cmax = 0;
+        // Ray Layout: 10000 * nlists * D / 2 rays
+        // [............Cluster 1 Ray.............][............Cluster 2 Ray.............]........
+        // |                                       \
+        // [Dim 00 Ray][Dim 01 Ray]......[Dim 63 Ray]
+        // |           \                 |           \
+        // [q0,q1,...,qc]                [q0,q1,...,qc]
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
-            cluster_bias[c] = accum;
             int query_of_cluster_c = cluster_query_mapping[c].size();
+            cluster_bias[c] = accum;
             accum += query_of_cluster_c;
-            cmax = std::max(cmax, query_of_cluster_c);
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
                 for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = SCALE * (1.0 * query_data[cluster_query_mapping[c][q]][2 * d] / sqrt(factors[d])) + bias;
-                    float y = SCALE * (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1] / sqrt(factors[d]));
-                    ray_origin_whole[index_bias++] = make_float3(x, y, 1.0 * 2 * d);
+                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
+                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
+                    ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
+                    index_bias++;
                 }
             }
-
         }
         bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
         auto pipeline = bvh_dict[0]->getOptixPipeline();
@@ -300,26 +323,52 @@ public:
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
         // omp_set_num_threads(128);
         // #pragma omp parallel for
-        for (int q = 0; q < query_size; q++) {
+        // for (int i = 0; i < index_bias; i++) {
+        //     printf("0x%08x\n", hit_record[i]);
+        // }
+        int r1_100 = 0;
+        for (int q = 0; q < 1; q++) {
+            std::vector <std::pair<int, int>> sort_res;
+            sort_res.clear();
             for (int nl = 0; nl < nlists; nl++) {
                 int tmp_cluster = query_cluster_mapping[q][nl].first;
+                int query_in_cluster_id = query_cluster_mapping[q][nl].second;
+#if VERBOSE == 1
+                printf("Query: %d, Cluster: %d, Bias: %d\n", q, tmp_cluster, query_in_cluster_id);
+#endif
                 int base_addr = cluster_bias[tmp_cluster] * D / M;
                 int stride = cluster_query_mapping[tmp_cluster].size();
                 std::unordered_map <int, int> point_counter_mapping;
                 for (int d = 0; d < D / M; d++) {
+                    int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
                     for (int bit = 0; bit < 32; bit++) {
-                        if (hit_record[base_addr + d * stride] & (1 << bit) == 1) {
+                        if (hit_res & (1 << bit) == 1) {
                             for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
                                 point_counter_mapping[item] ++;
                             }
                         }
                     }
-                    // printf("%08x%c", hit_record[base_addr + d * stride], (d % 16 == 15) ? '\n' : ' ');
+#if VERBOSE == 1
+                    printf("%08x%c", hit_res, (d % 16 == 15) ? '\n' : ' ');
+#endif
                 }
-                // printf("\n");
+#if VERBOSE == 1
+                printf("\n");
+#endif
                 // std::cout << "Cluster: " << query_cluster_mapping[q][nl].first << ", bias in cluster: " << query_cluster_mapping[q][nl].second << std::endl;
+                // for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
+                //     std::cout << it->first << std::endl;
+                //     sort_res.push_back(std::pair<int, int>(it->first, it->second));
+                // }
             }
+            // std::cout << sort_res.size() << std::endl;
+            // sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int>& a, const std::pair<int, int>& b) {return a.second > b.second;});
+            // std::cout << sort_res[0].first << " " << sort_res[0].second << std::endl;
+            // for (int topk = 0; topk = 100; topk++) {
+            //     if (sort_res[0].first == ground_truth[q][0]) r1_100++;
+            // }
         }
+        // std::cout << r1_100 << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
 

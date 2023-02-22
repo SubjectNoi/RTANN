@@ -44,6 +44,10 @@ public:
 
                 break;
             case CUSTOM:
+                Q = 1;
+                D = 4;
+                metric = METRIC_L2;
+                break;
             default:
 
                 break;

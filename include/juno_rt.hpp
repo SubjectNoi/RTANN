@@ -94,18 +94,22 @@ public:
         float3* centers;
         float* radius;
         dim_pair = _D / _M;
+        int prim_idx = 0;
         int num_sphere_per_dim_pair = _C;
         hitable_num = _coarse_grained_cluster_num * num_sphere_per_dim_pair * dim_pair;
         centers = new float3[hitable_num];
         radius = new float[hitable_num];
         for (int c = 0; c < _coarse_grained_cluster_num; c++) {
-            float bias = 1.0 * c;
             for (int d = 0; d < dim_pair; d++) {
+                // float _radius = _r * factors[d];
+                float _radius = _r * 1.0;
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
-                    float x = SCALE * (1.0 * _codebook_entry[c][d][n][0] / sqrt(factors[d])) + bias;
-                    float y = SCALE * (1.0 * _codebook_entry[c][d][n][0] / sqrt(factors[d]));
-                    centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (2 * d + 1));
-                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(_r);
+                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
+                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
+                    centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
+                    // if (c == 432 && d == 0) printf("Prim %d:(%.6f, %.6f, %.6f)\n", prim_idx, x, y, 1.0 * (c * 128 + 2 * d + 1));
+                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(_radius);
+                    prim_idx++;
                 }
             }
         }
