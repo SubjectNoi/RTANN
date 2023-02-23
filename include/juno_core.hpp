@@ -126,17 +126,22 @@ public:
             square_C[i] = res;
         }
         search_points_labels = new int[N];
-        read_search_points_labels((dataset_dir + "search_points_labels").c_str(), search_points_labels, N);
+        std::vector<std::vector<int>> cluster_points_mapping;
+        read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
         for (int n = 0; n < N; n++) {
             int label = search_points_labels[n];
             points_cluster_mapping[label].push_back(n);
         }
         int* cluster_size = new int[coarse_grained_cluster_num];
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
+            std::vector <int> place_holder;
+            place_holder.clear();
+            cluster_points_mapping.push_back(place_holder);
             int cnt = 0;
             for (int s = 0; s < N; s++) {
                 if (search_points_labels[s] == c) {
                     cnt++;
+                    cluster_points_mapping[c].push_back(s);
                 }
             }
             cluster_size[c] = cnt;
@@ -191,9 +196,10 @@ public:
                 for (int d = 0; d < D / M; d++) {
                     inversed_codebook_map[c][d] = new std::vector<int> [32];
                     for (int e = 0; e < 32; e++) {
+                        inversed_codebook_map[c][d][e].clear();
                         for (int n = 0; n < cluster_size[c]; n++) {
                             if (codebook_labels[c][d][n] == e) {
-                                inversed_codebook_map[c][d][e].push_back(n);
+                                inversed_codebook_map[c][d][e].push_back(cluster_points_mapping[c][n]);
                             }
                         }
                     }
@@ -321,13 +327,10 @@ public:
 
         gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
-        // omp_set_num_threads(128);
-        // #pragma omp parallel for
-        // for (int i = 0; i < index_bias; i++) {
-        //     printf("0x%08x\n", hit_record[i]);
-        // }
+
         int r1_100 = 0;
-        for (int q = 0; q < 1; q++) {
+        #pragma omp parallel for
+        for (int q = 0; q < query_size; q++) {
             std::vector <std::pair<int, int>> sort_res;
             sort_res.clear();
             for (int nl = 0; nl < nlists; nl++) {
@@ -356,19 +359,23 @@ public:
                 printf("\n");
 #endif
                 // std::cout << "Cluster: " << query_cluster_mapping[q][nl].first << ", bias in cluster: " << query_cluster_mapping[q][nl].second << std::endl;
-                // for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
-                //     std::cout << it->first << std::endl;
-                //     sort_res.push_back(std::pair<int, int>(it->first, it->second));
-                // }
+                for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
+                    sort_res.push_back(std::pair<int, int>(it->first, it->second));
+                }
             }
-            // std::cout << sort_res.size() << std::endl;
-            // sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int>& a, const std::pair<int, int>& b) {return a.second > b.second;});
-            // std::cout << sort_res[0].first << " " << sort_res[0].second << std::endl;
-            // for (int topk = 0; topk = 100; topk++) {
-            //     if (sort_res[0].first == ground_truth[q][0]) r1_100++;
-            // }
+            // std::cout << "Begin Sort List: " << sort_res.size() << std::endl;
+            sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            // std::cout << "Check Top 100 with ground truth:" << ground_truth[q][0] << std::endl;
+            for (int topk = 0; topk < 100; topk++) {
+                // std::cout << sort_res[topk].first << " " << ground_truth[q][0] << std::endl;
+                if (sort_res[topk].first == ground_truth[q][0]) {
+                    #pragma omp critical
+                        r1_100++;
+                    break;
+                }
+            }
         }
-        // std::cout << r1_100 << std::endl;
+        std::cout << r1_100 << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
 

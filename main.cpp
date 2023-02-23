@@ -16,7 +16,12 @@ int main(int argc, char** argv) {
     juno::juno_query_total<float> query(path, SIFT1M);
     server.buildJunoIndexWhole();
     query.generateQueryBatch(10000);
-    server.serveQueryWhole(query.query_queue[0], 2);
+    int nlists;
+    while (std::cin >> nlists) {
+        if (nlists < 0) break;
+        server.serveQueryWhole(query.query_queue[0], nlists);
+    }
+
 
     // std::string path = "/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/dummy/";
     // juno::juno_core<float> server(path, CUSTOM, 1, 0.3);
