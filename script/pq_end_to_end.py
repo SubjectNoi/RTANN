@@ -17,7 +17,7 @@ import xgboost as xgb
 d = 128
 n = 1000000
 nlists = int(sys.argv[2])
-q = 100
+q = 1
 bias = 0
 thres = float(sys.argv[1])
 cluster_num = int(sys.argv[3])
@@ -27,7 +27,7 @@ while len(random_indices) < q:
     index = np.random.randint(0, 10000, 1)[0]
     if index not in random_indices:
         random_indices.append(index)
-# random_indices = [0]
+random_indices = [0]
 
 def l2(x, y):
     res = 0.0
@@ -77,30 +77,30 @@ for i in range(d):
     tmp = [x[i] for x in xb]
     stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
 
-kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
-cluster_centroids = kmeans.cluster_centers_
-labels = kmeans.labels_
-# labels, cluster_centroids = kmeans(X=xb, num_clusters=nlists, distance='euclidean', device=torch.device('cuda:0'))
-f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
-for cc in cluster_centroids:
-    for x in cc:
-        f1.write("%f " % (x))
-    f1.write("\n")
+# kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
+# cluster_centroids = kmeans.cluster_centers_
+# labels = kmeans.labels_
+# # labels, cluster_centroids = kmeans(X=xb, num_clusters=nlists, distance='euclidean', device=torch.device('cuda:0'))
+# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
+# for cc in cluster_centroids:
+#     for x in cc:
+#         f1.write("%f " % (x))
+#     f1.write("\n")
 
-f1.write("-----\n")
-for l in labels:
-    f1.write("%d " % (l))
-f1.close()
+# f1.write("-----\n")
+# for l in labels:
+#     f1.write("%d " % (l))
+# f1.close()
 
-# cluster_centroids, labels = [], []
-# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/cluster_centroids_%d" % (nlists)).readlines()
-# fcentroids, flabels = f1[0:nlists], f1[-1]
-# flabels = flabels.split()[0:n]
-# for item in fcentroids:
-#     tmp = [float(x) for x in item.split()[0:d]]
-#     cluster_centroids.append(tmp)
-# for item in flabels:
-#     labels.append(int(item))
+cluster_centroids, labels = [], []
+f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+fcentroids, flabels = f1[0:nlists], f1[-1]
+flabels = flabels.split()[0:n]
+for item in fcentroids:
+    tmp = [float(x) for x in item.split()[0:d]]
+    cluster_centroids.append(tmp)
+for item in flabels:
+    labels.append(int(item))
 print("First Cluster Finished")
 
 
@@ -108,7 +108,7 @@ cluster_centroids_with_id = []
 for i in range(len(cluster_centroids)):
     cluster_centroids_with_id.append([i, cluster_centroids[i]])
 
-pq_nlists = 16
+pq_nlists = 32
 pq_m = 2
 pq_d = int(d // pq_m)
 
@@ -132,28 +132,28 @@ for keys in cluster_mapping:
     current_cluster = cluster_mapping[keys]
     pq_centroids, pq_labels = [], []
     for pq in range(pq_d):
-        X = [[x[pq * 2], x[pq * 2 + 1]] for x in [y[1] for y in current_cluster]]
-        subkmeans = KMeans(n_clusters=pq_nlists, init='k-means++', n_init=16).fit(X)
-        sub_centroids = subkmeans.cluster_centers_
-        sub_labels = subkmeans.labels_
-        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
-        for item in sub_centroids:
-            for x in item:
-                fcluster.write("%f " % (x))
-            fcluster.write("\n")
-        fcluster.write("-----\n")
-        for item in sub_labels:
-            fcluster.write("%d " % (item))
-        fcluster.close()
-        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
-        # sub_centroids, sub_labels = [], []
-        # fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
-        # fsublabels = fsublabels.split()[0:len(current_cluster)]
-        # for item in fsubcentroids:
-        #     tmp = [float(x) for x in item.split()[0:pq_m]]
-        #     sub_centroids.append(tmp)
-        # for item in fsublabels:
-        #     sub_labels.append(int(item))
+        # X = [[x[pq * 2], x[pq * 2 + 1]] for x in [y[1] for y in current_cluster]]
+        # subkmeans = KMeans(n_clusters=pq_nlists, init='k-means++', n_init=16).fit(X)
+        # sub_centroids = subkmeans.cluster_centers_
+        # sub_labels = subkmeans.labels_
+        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
+        # for item in sub_centroids:
+        #     for x in item:
+        #         fcluster.write("%f " % (x))
+        #     fcluster.write("\n")
+        # fcluster.write("-----\n")
+        # for item in sub_labels:
+        #     fcluster.write("%d " % (item))
+        # fcluster.close()
+        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        sub_centroids, sub_labels = [], []
+        fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
+        fsublabels = fsublabels.split()[0:len(current_cluster)]
+        for item in fsubcentroids:
+            tmp = [float(x) for x in item.split()[0:pq_m]]
+            sub_centroids.append(tmp)
+        for item in fsublabels:
+            sub_labels.append(int(item))
         pq_centroids.append(sub_centroids)
         pq_labels.append(sub_labels)
     for icc in range(len(current_cluster)):
@@ -279,14 +279,16 @@ for qid in range(len(xq)):
             # plt.savefig("query_1_hit_demo/dim=%d.png" % (sid), dpi=600)
             # plt.clf()
             
-            mask = 0
-            # for sceid in sel_codebook_entry_id:
-            #     mask |= (1 << sceid)
             # print("%08x" % (mask), end=' ')
             sel_codebook_entry_id = [x[0] for x in codebook_line_with_id[0:selected_codebook_points_num]]
+            
+            mask = 0
             for sceid in sel_codebook_entry_id:
                 mask |= (1 << sceid)
+            for sceid in sel_codebook_entry_id:
+                # mask |= (1 << sceid)
                 for i in TREE[skey][sid][sceid]:
+                    # if i[0] == 1884: print("%2d, %2d,  %08x, %08x, %s" % (sid, sceid, mask, (mask & ((1 << sceid))), "Hit" if ((mask & ((1 << sceid))) != 0) else "   "))
                     seg_candidate.append(i[0])
             # print("%08x" % (mask), end=' ')
             # if sid % 16 == 15: print()
@@ -294,7 +296,7 @@ for qid in range(len(xq)):
                 if sc not in occurance:
                     occurance[sc] = 0
                 occurance[sc] += 1
-        print()
+        # print()
     occurance_list = []
     for keys in occurance:
         occurance_list.append([keys, occurance[keys]])
