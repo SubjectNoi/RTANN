@@ -352,7 +352,7 @@ public:
 
         int r1_100 = 0;
         int r100_1000 = 0;
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
             std::vector <std::pair<int, int>> sort_res;
             sort_res.clear();
@@ -371,8 +371,6 @@ public:
                     for (unsigned int bit = 0; bit < 32; bit++) {
                         if ((hit_res & (one << bit)) != zero) {
                             for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
-                                // if (item == 1884) std::cout << d << " " << bit << " " << hit_res << " " << (hit_res & (one << bit)) << std::endl;
-                                // if (item == 1884) printf("%2d, %2d, %08x, %08x, %s\n", d, bit, hit_res, (hit_res & (one << bit)), ((hit_res & (one << bit)) != zero) ? "Hit" : "   ");
                                 point_counter_mapping[item] ++;
                             }
                         }
@@ -384,17 +382,11 @@ public:
 #if VERBOSE == 1
                 printf("\n");
 #endif
-                // std::cout << "Cluster: " << query_cluster_mapping[q][nl].first << ", bias in cluster: " << query_cluster_mapping[q][nl].second << std::endl;
                 for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
                     sort_res.push_back(std::pair<int, int>(it->first, it->second));
                 }
             }
-            // std::cout << "Begin Sort List: " << sort_res.size() << std::endl;
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
-            // for (auto && item : sort_res) {
-            //     std::cout << item.first << " " << item.second << std::endl;
-            // }
-            // std::cout << "Check Top 100 with ground truth:" << ground_truth[q][0] << std::endl;
             int local_r1_100 = 0;
             for (int topk = 0; topk < 100; topk++) {
                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;

@@ -1,4 +1,3 @@
-export JUNO_ROOT=/home/altairliu/workspace/RTANN
 rm -rf ${JUNO_ROOT}/build/*
 rm ${JUNO_ROOT}/src/*.optixir
 rm -rf ${JUNO_ROOT}/src/CMake*
