@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <optix.h>
+#include <optix_host.h>
 #include <optix_function_table_definition.h>
 #include <optix_stack_size.h>
 #include <optix_stubs.h>
@@ -33,7 +34,7 @@
 #define TRIANGLE_PER_HITABLE 6
 #define HIT_MAGIC_NUMBER 114514
 #define COARSE_GRAIN_CLUSTER_USE_GPU 0
-#define NLISTS_MAX 8
+#define NLISTS_MAX 32
 #define PQ_DIM 2
 #define SCALE 0.75
 #define HIT_REC_PER_C 200

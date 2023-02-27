@@ -1,5 +1,9 @@
-cd /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/src
-nvcc -o juno_rt.optixir --optix-ir -I /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/include/ -I /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/include/ -I /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/SDK/ -I /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/SDK/support -I /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/SDK/build juno_rt.cu
-cd /home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/build
+# Copy this 3 lines to your terminal! I failed to set these envs in this file, I do not know why
+# export OptiX_INSTALL_DIR=/home/altairliu/Downloads/NVIDIA-OptiX-SDK-7.6.0-linux64-x86_64 &&
+# export JUNO_ROOT=/home/altairliu/workspace/RTANN &&
+# export OpenBLAS_INSTALL_DIR=/home/altairliu/workspace/OpenBLAS
+cd ${JUNO_ROOT}/src
+nvcc -o juno_rt.optixir --optix-ir -I ${OptiX_INSTALL_DIR}/include/ -I ${JUNO_ROOT}/include/ -I ${OpenBLAS_INSTALL_DIR}/ -I ${OptiX_INSTALL_DIR}/SDK/ -I ${OptiX_INSTALL_DIR}/SDK/support -I ${OptiX_INSTALL_DIR}/SDK/build juno_rt.cu
+cd ${JUNO_ROOT}/build
 cmake ..
 make

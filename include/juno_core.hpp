@@ -54,7 +54,7 @@ public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
               int _coarse_grained_cluster_num=1000, 
-              T _radius=0.25,
+              T _radius=0.15,
               bool _use_pq=true, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
@@ -96,7 +96,7 @@ public:
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
         hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
-        dbg("Begin Reading Dataset and Cluster Info.");
+        printf("Reading Search Points...");
         search_points = new T* [N];
         search_points_flatten = new T[N * D];
         for (int i = 0; i < N; i++) search_points[i] = new T[D];
@@ -106,7 +106,9 @@ public:
                 search_points_flatten[n * D + d] = search_points[n][d];
             }
         }
+        printf("Finished\n");
 
+        printf("Reading Cluster Centroids...");
         cluster_centroids_vec.clear();
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
@@ -125,6 +127,8 @@ public:
             cluster_centroids_vec.push_back(std::pair<int, std::vector<T>>(i, centroid));
             square_C[i] = res;
         }
+        printf("Finished\n");
+        printf("Reading Search Point Labels...");
         search_points_labels = new int[N];
         std::vector<std::vector<int>> cluster_points_mapping;
         read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
@@ -146,7 +150,9 @@ public:
             }
             cluster_size[c] = cnt;
         }
+        printf("Finished\n");
 
+        printf("Reading Ground Truth...");
         ground_truth = new int*[Q];
         ground_truth_flatten = new int[Q * 100];
         for (int i = 0; i < Q; i++) ground_truth[i] = new int[100];
@@ -156,6 +162,7 @@ public:
                 ground_truth_flatten[q * 100 + gt] = ground_truth[q][gt];
             }
         }
+        printf("Finished\n");
 
         stat = new T*[D];
         for (int i = 0; i < D; i++) {
@@ -171,6 +178,7 @@ public:
             stat[i][3] = std::sqrt(std::inner_product(tmp.begin(), tmp.end(), tmp.begin(), 0.0) / (1.0 * N) - stat[i][2] * stat[i][2]);
         }
         if (use_pq == true) {
+            printf("Reading Codebook Entry...");
             codebook_entry = new T***[coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 codebook_entry[c] = new T**[D / M];
@@ -190,6 +198,7 @@ public:
                 }
             }
             read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
+            printf("Finished\n");
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 inversed_codebook_map[c] = new std::vector<int>* [D / M];
@@ -235,10 +244,10 @@ public:
     }
 
     void serveQueryWhole(juno_query_batch<T>* _query_batch, int nlists) {
+        // omp_set_num_threads(16);
         assert((nlists < NLISTS_MAX) || "Max nlists exceeded.\n");
         // 1st filtering, can be optimized using CUDA/OpenMP
         struct timeval st, ed;
-        gettimeofday(&st, NULL);
         T** query_data = _query_batch->getQueryData();
         T* query_data_flatten = _query_batch->getFlattenQueryData();
         int query_size = _query_batch->getQuerySize();
@@ -249,12 +258,12 @@ public:
         // Record which clusters a query falls in
         std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
         float **L2mat = new float*[query_size];
-
-        // Can be optimized with OpenBLAS        
-        // #pragma omp parallel for
+        for (int q = 0; q < query_size; q++) L2mat[q] = new float[coarse_grained_cluster_num];
+        // Can be optimized with OpenBLAS   
+        gettimeofday(&st, NULL);     
         for (int q = 0; q < query_size; q++) {
             // Calculate the L2-dist between every cluster centroids
-            L2mat[q] = new float[coarse_grained_cluster_num];
+            // #pragma omp parallel for
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 L2mat[q][c] = L2Dist(query_data[q], cluster_centroids[c], D);
             }
@@ -262,13 +271,19 @@ public:
             query_cluster_mapping.push_back(query_place_holder);
         }
 
+        gettimeofday(&ed, NULL);
+        elapsed("Calculate L2 Dist[CPU]", st, ed);
         // Init 
+
+
+        gettimeofday(&st, NULL);
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector<int> query_ids;
             query_ids.clear();
             cluster_query_mapping.push_back(query_ids);
         }
         // Can be optimized use OpenMP/CUDA
+        // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
             std::vector <T> query_vec;
             query_vec.clear();
@@ -290,10 +305,10 @@ public:
             }
         }
         gettimeofday(&ed, NULL);
-        elapsed("Filtering", st, ed);
+        elapsed("Filtering[CPU]", st, ed);
 
-        gettimeofday(&st, NULL);
         // 2nd setting ray origins
+        gettimeofday(&st, NULL);
         float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
         int index_bias = 0, accum = 0;
         // Ray Layout: 10000 * nlists * D / 2 rays
@@ -316,7 +331,14 @@ public:
                 }
             }
         }
+        gettimeofday(&ed, NULL);
+        elapsed("Setting Ray Origin[CPU]", st, ed);
+
+        gettimeofday(&st, NULL);
         bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
+        gettimeofday(&ed, NULL);
+        elapsed("Copying Ray Origin H->D[GPU]", st, ed);
+        gettimeofday(&st, NULL);
         auto pipeline = bvh_dict[0]->getOptixPipeline();
         auto d_param = bvh_dict[0]->getDparams();
         auto sbt = bvh_dict[0]->getSBT();   
@@ -381,7 +403,7 @@ public:
                     break;
                 }
             }
-            #pragma omp critical 
+            // #pragma omp critical 
             {
                 r1_100 += local_r1_100;
             }
@@ -394,10 +416,10 @@ public:
                     }
                 }
             }
-            #pragma omp critical 
-            {
+            // #pragma omp critical 
+            // {
                 r100_1000 += local_r100_1000;
-            }
+            // }
         }
         
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
@@ -513,20 +535,20 @@ public:
         
         if (typeid(T) == typeid(float)) {
             // export OPENBLAS_NUM_THREADS=16, ~0.35ms
-            cblas_sgemm(CblasRowMajor, 
-                        CblasNoTrans, 
-                        CblasTrans,
-                        query_size,
-                        coarse_grained_cluster_num,
-                        D,
-                        1.0f,
-                        tmp_flatten, 
-                        D, 
-                        cluster_centroids_flatten,
-                        D, 
-                        0.0f,
-                        QC_flatten, 
-                        coarse_grained_cluster_num);
+            // cblas_sgemm(CblasRowMajor, 
+            //             CblasNoTrans, 
+            //             CblasTrans,
+            //             query_size,
+            //             coarse_grained_cluster_num,
+            //             D,
+            //             1.0f,
+            //             tmp_flatten, 
+            //             D, 
+            //             cluster_centroids_flatten,
+            //             D, 
+            //             0.0f,
+            //             QC_flatten, 
+            //             coarse_grained_cluster_num);
         }
         else if (typeid(T) == typeid(double)) {
             // cblas_dgemm(CblasRowMajor, 

@@ -283,7 +283,7 @@ public:
         pipeline_compile_options.usesPrimitiveTypeFlags = (prim_type == PRIMITIVE_TYPE_SPHERE) ? OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE : OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
                 
         std::string input;
-        std::ifstream file("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/src/juno_rt.optixir", std::ios::binary);
+        std::ifstream file(std::getenv("JUNO_ROOT") + std::string("/src/juno_rt.optixir"), std::ios::binary);
         if (file.good()) {
             std::vector<unsigned char> buffer = std::vector<unsigned char>(std::istreambuf_iterator<char>(file), {});
             input.assign(buffer.begin(), buffer.end());
