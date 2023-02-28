@@ -67,7 +67,8 @@
         "set": "cpp",
         "stack": "cpp",
         "unordered_set": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "__pragma_push": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

@@ -17,6 +17,12 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
 
 void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat);
 
+void counterOnGPU (std::vector<std::vector<std::pair<int, int>>> &query_cluster_mapping, int query_size, int nlists, int D, int M, int coarse_grained_cluster_num, 
+    int cluster_bias[], std::vector<std::vector<int>> &cluster_query_mapping, 
+    unsigned int *d_hit_record, int index_bias, 
+    std::vector<int>*** inversed_codebook_map
+) ;
+
 }; // namespace juno
 
 #endif

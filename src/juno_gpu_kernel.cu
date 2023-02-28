@@ -1,6 +1,9 @@
 #include "cuda.h"
 #include "juno_gpu_kernel.cuh"
 #include <stdio.h>
+
+#include <thrust/sort.h>
+
 const float L2max = 1964.62;
 namespace juno {
 
@@ -85,6 +88,139 @@ __global__ void calcDensitySearchPoint(float* p, float* q, float* dmax, float* r
     //         res[t * _D + _D / 2 + d] = diff;
     //     }
     // }
+}
+
+// query_cluster_mapping_array: [nq, nlists, 2]
+// cluster_bias: [coarse_grained_cluster_num]
+// cluster_query_mapping: [coarse_grained_cluster_num]
+// d_inversed_codebook_map: [coarse_grained_cluster_num, D / M, 32]
+__global__ void query_counter (int *query_cluster_mapping_array, int *cluster_bias, 
+    int *cluster_query_mapping, int *cluster_query_mapping_size, 
+    int *inversed_codebook_map, int *inversed_codebook_map_size, 
+    unsigned int *hit_record, 
+    int query_size, int nlists, int D, int M, 
+    int8_t *counter
+) {
+    // int threadID = blockIdx.x * blockDim.x + threadIdx.x;
+    // int q = threadID / nlists, nl = threadID % nlists;
+    int q = blockIdx.x * blockDim.x + threadIdx.x;
+    // if (q < query_size && nl < nlists) {
+    if (q < query_size) {
+        for (int nl = 0; nl < nlists; nl ++) {
+        int tmp_cluster = query_cluster_mapping_array[q * nlists * 2 + nl * 2];
+        int query_in_cluster_id = query_cluster_mapping_array[q * nlists * 2 + nl * 2 + 1];
+#if VERBOSE == 1
+        printf("Query: %d, Cluster: %d, Bias: %d\n", q, tmp_cluster, query_in_cluster_id);
+#endif
+        int base_addr = cluster_bias[tmp_cluster] * D / M;
+        // int stride = 0 ;
+        int stride = cluster_query_mapping_size[tmp_cluster] ;
+
+        unsigned int one = 1, zero = 0;
+        for (int d = 0; d < D / M; d++) {
+            unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
+            for (unsigned int bit = 0; bit < 32; bit++) {
+                int cur_pos = 0 ;
+                if ((hit_res & (one << bit)) != zero) {
+                    for (int i = 0; i < inversed_codebook_map_size[tmp_cluster * (D / M) * 32 + d * 32 + bit]; i ++) {
+                        // counter ++
+                        counter[q * 1000000 + inversed_codebook_map[tmp_cluster * (D / M) * 32 + d * 32 + bit + cur_pos + i]] ++;
+                    }
+                }
+                cur_pos += inversed_codebook_map_size[tmp_cluster * (D / M) * 32 + d * 32 + bit];
+            }
+#if VERBOSE == 1
+            printf("%08x%c", hit_res, (d % 16 == 15) ? '\n' : ' ');
+#endif
+        }
+#if VERBOSE == 1
+        printf("\n");
+#endif
+    }
+    }
+}
+
+void counterOnGPU (std::vector<std::vector<std::pair<int, int>>> &query_cluster_mapping, int query_size, int nlists, int D, int M, int coarse_grained_cluster_num, 
+    int cluster_bias[], std::vector<std::vector<int>> &cluster_query_mapping, 
+    unsigned int *d_hit_record, int index_bias, 
+    std::vector<int>*** inversed_codebook_map
+) {
+    // init part
+    int *inversed_codebook_map_size = new int [coarse_grained_cluster_num * (D / M) * 32] ;
+    int inversed_codebook_map_total_size = 0 ;
+    for (int c = 0; c < coarse_grained_cluster_num; c ++)
+        for (int d = 0; d < D / M; d ++)
+            for (int e = 0; e < 32; e ++) {
+                inversed_codebook_map_size[c * (D / M) * 32 + d * 32 + e] = inversed_codebook_map[c][d][e].size() ;
+                inversed_codebook_map_total_size += inversed_codebook_map[c][d][e].size() ;
+            }
+    int *inversed_codebook_map_array = new int [inversed_codebook_map_total_size] ;
+    int cur_pos = 0 ;
+    for (int c = 0; c < coarse_grained_cluster_num; c ++)
+        for (int d = 0; d < D / M; d ++)
+            for (int e = 0; e < 32; e ++) {
+                for (int i = 0; i < inversed_codebook_map[c][d][e].size(); i ++) {
+                    inversed_codebook_map_array[cur_pos + i] = inversed_codebook_map[c][d][e][i] ;
+                }
+                cur_pos += inversed_codebook_map[c][d][e].size() ;
+            }
+
+    int* d_inversed_codebook_map_array, *d_inversed_codebook_map_array_size ;
+    CUDA_CHECK(cudaMalloc((void**)&d_inversed_codebook_map_array, sizeof(int) * inversed_codebook_map_total_size)) ;
+    CUDA_CHECK(cudaMalloc((void**)&d_inversed_codebook_map_array_size, sizeof(int) * coarse_grained_cluster_num * (D / M) * 32)) ;
+    CUDA_CHECK(cudaMemcpy(d_inversed_codebook_map_array, inversed_codebook_map_array, sizeof(int) * inversed_codebook_map_total_size, cudaMemcpyHostToDevice)) ;
+    
+    int* d_cluster_bias ;
+    CUDA_CHECK(cudaMalloc((void**)&d_cluster_bias, sizeof(int) * 1000));
+    CUDA_CHECK(cudaMemcpy((void*)d_cluster_bias, (void*)cluster_bias, sizeof(int) * 1000, cudaMemcpyHostToDevice));
+
+    // query related
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+    int query_cluster_mapping_array[query_size][nlists][2];
+    for (int q = 0; q < query_size; q ++)
+        for (int nl = 0; nl < nlists; nl ++) {
+            query_cluster_mapping_array[q][nl][0] = query_cluster_mapping[q][nl].first;
+            query_cluster_mapping_array[q][nl][1] = query_cluster_mapping[q][nl].second;
+        }
+
+    int *cluster_query_mapping_array_size = new int [cluster_query_mapping.size()] ;
+    int cluster_query_mapping_array_total_size = 0 ;
+    for (int i = 0; i < cluster_query_mapping.size(); i ++) {
+        cluster_query_mapping_array_size[i] = cluster_query_mapping[i].size() ;
+        cluster_query_mapping_array_total_size += cluster_query_mapping[i].size() ;
+    }
+    int *cluster_query_mapping_array = new int [cluster_query_mapping_array_total_size] ;
+    cur_pos = 0 ;
+    for (int i = 0; i < cluster_query_mapping.size(); i ++) {
+        for (int j = 0; j < cluster_query_mapping[i].size(); j ++) {
+            cluster_query_mapping_array[cur_pos + j] = cluster_query_mapping[i][j] ;
+        }
+        cur_pos += cluster_query_mapping[i].size() ;
+    }
+
+    int* d_cluster_query_mapping_array, *d_cluster_query_mapping_array_size ;
+    CUDA_CHECK(cudaMalloc((void**)&d_cluster_query_mapping_array, sizeof(int) * cluster_query_mapping_array_total_size)) ;
+    CUDA_CHECK(cudaMalloc((void**)&d_cluster_query_mapping_array_size, sizeof(int) * cluster_query_mapping.size())) ;
+    CUDA_CHECK(cudaMemcpy(d_cluster_query_mapping_array, cluster_query_mapping_array, sizeof(int) * cluster_query_mapping_array_total_size, cudaMemcpyHostToDevice)) ;
+
+    int* d_query_cluster_mapping_array;
+    CUDA_CHECK(cudaMalloc((void**)&d_query_cluster_mapping_array, sizeof(int) * query_size * nlists * 2));
+    CUDA_CHECK(cudaMemcpy((void*)d_query_cluster_mapping_array, (void*)query_cluster_mapping_array, sizeof(int) * query_size * nlists * 2, cudaMemcpyHostToDevice));
+
+    int8_t *d_counter ;
+    CUDA_CHECK(cudaMalloc((void**)&d_counter, sizeof(int8_t) * query_size * 1000000)) ;
+    query_counter<<<(query_size + 1023) / 1024, 1024>>> (d_query_cluster_mapping_array, d_cluster_bias, d_cluster_query_mapping_array, d_cluster_query_mapping_array_size, d_inversed_codebook_map_array, d_inversed_codebook_map_array_size, d_hit_record, query_size, nlists, D, M, d_counter) ;
+    
+    // CUDA_CHECK(cudaMemcpy(counter, d_counter, sizeof(int8_t) * query_size * 1000000, cudaMemcpyDeviceToHost)) ;
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("[%32s]: %010.6fms\n", "counting on GPU", milliseconds);
 }
 
 void plotQueryWithDensity(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C) {

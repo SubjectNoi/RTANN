@@ -5,6 +5,8 @@
 #include "utils.hpp"
 #include "juno_rt.hpp"
 #include "juno_query.hpp"
+#include "juno_gpu_kernel.cuh"
+
 namespace juno {
 
 template <typename T>
@@ -325,9 +327,15 @@ public:
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
 
-        gettimeofday(&st, NULL);
+        // gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
 
+        // counter caluclation on GPU
+        dbg ("counter begin on CUDA.") ;
+        counterOnGPU (query_cluster_mapping, query_size, nlists, D, M, coarse_grained_cluster_num, cluster_bias, cluster_query_mapping, bvh_dict[0]->getPrimitiveHit(), index_bias, inversed_codebook_map) ;
+        
+        // counter calculation on CPU
+        gettimeofday(&st, NULL);
         int r1_100 = 0;
         int r100_1000 = 0;
         #pragma omp parallel for
@@ -402,8 +410,7 @@ public:
         
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
-        elapsed("Computing Hit Result", st, ed);
-
+        elapsed("Computing Hit Result[CPU]", st, ed);
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {

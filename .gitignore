@@ -2,3 +2,4 @@ build
 data
 tmp*
 script_legacy
+.vscode
