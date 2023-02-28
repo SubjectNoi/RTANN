@@ -36,6 +36,7 @@ private:
     int*        search_points_labels;
     int**       ground_truth;
     int*        ground_truth_flatten;
+    int*        cluster_size;
     T           radius;
     T**         stat;
     T****       codebook_entry;         // [C][D/M][E][M]
@@ -136,7 +137,7 @@ public:
             int label = search_points_labels[n];
             points_cluster_mapping[label].push_back(n);
         }
-        int* cluster_size = new int[coarse_grained_cluster_num];
+        cluster_size = new int[coarse_grained_cluster_num];
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector <int> place_holder;
             place_holder.clear();
@@ -254,7 +255,8 @@ public:
         int cluster_bias[1000] = {-1};
         // Record which queries fall into the cluster C
         std::vector<std::vector<int>> cluster_query_mapping;
-
+        int *total_candidate = new int[query_size];
+        
         // Record which clusters a query falls in
         std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
         float **L2mat = new float*[query_size];
@@ -285,6 +287,7 @@ public:
         // Can be optimized use OpenMP/CUDA
         // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
+            int cnt = 0;
             std::vector <T> query_vec;
             query_vec.clear();
             for (int d = 0; d < D; d++) {
@@ -302,7 +305,9 @@ public:
                 query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
                 // Push query q into the query_list of cluster c
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
+                cnt += cluster_size[cluster_centroids_vec[nl].first];
             }
+            total_candidate[q] = cnt;
         }
         gettimeofday(&ed, NULL);
         elapsed("Filtering[CPU]", st, ed);
@@ -370,9 +375,12 @@ public:
                     unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
                     for (unsigned int bit = 0; bit < 32; bit++) {
                         if ((hit_res & (one << bit)) != zero) {
+                            // int cnt = 0;
                             for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
                                 point_counter_mapping[item] ++;
+                                // cnt ++;
                             }
+                            // std::cout << cnt << "/" << total_candidate[q] << std::endl;
                         }
                     }
 #if VERBOSE == 1

@@ -4,3 +4,4 @@ tmp*
 script_legacy
 gmon.out
 setenv.sh
+*.optixir
