@@ -1,6 +1,8 @@
+import torch
 import numpy as np
 import sys
 from sklearn.cluster import KMeans
+from kmeans_pytorch import kmeans
 # from sklearn.cluster import AgglomerativeClustering
 # from sklearn.decomposition import PCA                                             
 import seaborn as sns 
@@ -77,20 +79,28 @@ for i in range(d):
     tmp = [x[i] for x in xb]
     stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
 
+if torch.cuda.is_available():
+    device = torch.device('cuda:0')
+else:
+    device = torch.device('cpu')
+
 # kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
+labels, cluster_centroids = kmeans(
+    X=xb, num_clusters=nlists, distance='euclidean', device=device
+)
 # cluster_centroids = kmeans.cluster_centers_
 # labels = kmeans.labels_
-# # labels, cluster_centroids = kmeans(X=xb, num_clusters=nlists, distance='euclidean', device=torch.device('cuda:0'))
-# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
-# for cc in cluster_centroids:
-#     for x in cc:
-#         f1.write("%f " % (x))
-#     f1.write("\n")
+# labels, cluster_centroids = kmeans(X=xb, num_clusters=nlists, distance='euclidean', device=torch.device('cuda:0'))
+f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
+for cc in cluster_centroids:
+    for x in cc:
+        f1.write("%f " % (x))
+    f1.write("\n")
 
-# f1.write("-----\n")
-# for l in labels:
-#     f1.write("%d " % (l))
-# f1.close()
+f1.write("-----\n")
+for l in labels:
+    f1.write("%d " % (l))
+f1.close()
 
 cluster_centroids, labels = [], []
 f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
