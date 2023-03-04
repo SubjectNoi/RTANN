@@ -1,0 +1,27 @@
+{
+    "env": {
+        "OptiX_INSTALL_DIR": "/home/wtni/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/", 
+        "OpenBLAS_INSTALL_DIR": "/home/wtni/OpenBLAS/build", 
+        "CuCollection_INSTALL_DIR": "/home/wtni/cuCollections/"
+    }, 
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**", 
+                "/home/wtni/RTANN/RTANN/include", 
+                "${OptiX_INSTALL_DIR}/include", 
+                "${OptiX_INSTALL_DIR}/SDK", 
+                "${OptiX_INSTALL_DIR}/SDK/support", 
+                "${OptiX_INSTALL_DIR}/SDKBuild", 
+                "${OpenBLAS_INSTALL_DIR}/include", 
+                "${OpenBLAS_INSTALL_DIR}/lib"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}
