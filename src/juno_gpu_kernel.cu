@@ -3,7 +3,14 @@
 #include "juno_gpu_kernel.cuh"
 #include <stdio.h>
 
-#include <thrust/sort.h>
+// cuCollections hashmap
+// #include <cuco/static_map.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
+#include <thrust/sequence.h>
 
 // #define DEBUG_GPU 1
 
@@ -93,7 +100,25 @@ __global__ void calcDensitySearchPoint(float* p, float* q, float* dmax, float* r
     // }
 }
 
+void testHashmap () {
+    using Key   = int;
+    using Value = int8_t;
 
+    Key constexpr empty_key_sentinel     = -1;
+    Value constexpr empty_value_sentinel = -1;
+
+    std::size_t const num_keys = 10000 ;
+    std::size_t const capacity = 20000;
+
+    thrust::device_vector<Key> insert_keys(num_keys);
+    thrust::sequence(insert_keys.begin(), insert_keys.end(), 0);
+    thrust::device_vector<Value> insert_values(num_keys);
+    thrust::sequence(insert_values.begin(), insert_values.end(), 0);
+
+    // cuco::static_map<Key, Value> map{
+    // capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
+    // auto device_insert_view = map.get_device_mutable_view();
+}
 
 // query_cluster_mapping_array: [nq, nlists, 2]
 // cluster_bias: [coarse_grained_cluster_num]

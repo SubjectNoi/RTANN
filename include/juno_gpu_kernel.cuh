@@ -23,6 +23,8 @@ void counterOnGPU (std::vector<std::vector<std::pair<int, int>>> &query_cluster_
     std::vector<int>*** inversed_codebook_map
 ) ;
 
+void testHashmap () ;
+
 }; // namespace juno
 
 #endif

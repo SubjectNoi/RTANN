@@ -4,3 +4,4 @@ tmp*
 script_legacy
 .vscode
 *.out
+cmake
