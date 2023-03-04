@@ -371,9 +371,9 @@ public:
                 printf("\n");
 #endif
                 // std::cout << "Cluster: " << query_cluster_mapping[q][nl].first << ", bias in cluster: " << query_cluster_mapping[q][nl].second << std::endl;
-                for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
-                    sort_res.push_back(std::pair<int, int>(it->first, it->second));
-                }
+                // for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
+                //     sort_res.push_back(std::pair<int, int>(it->first, it->second));
+                // }
             }
 #if DEBUG_CPU == 1
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.first < b.first;});
@@ -382,40 +382,40 @@ public:
             }
 #endif
             // std::cout << "Begin Sort List: " << sort_res.size() << std::endl;
-            sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            // sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
             // printf ("%d %d\n", sort_res[0].first, sort_res[0].second) ;
             // for (auto && item : sort_res) {
             //     std::cout << item.first << " " << item.second << std::endl;
             // }
             // std::cout << "Check Top 100 with ground truth:" << ground_truth[q][0] << std::endl;
-            int local_r1_100 = 0;
-            for (int topk = 0; topk < 100; topk++) {
-                // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
-                if (sort_res[topk].first == ground_truth[q][0]) {
-                    local_r1_100++;
-                    break;
-                }
-            }
-            #pragma omp critical 
-            {
-                r1_100 += local_r1_100;
-            }
-            int local_r100_1000 = 0;
-            for (int gt = 0; gt < 100; gt++) {
-                for (int topk = 0; topk < 1000; topk++) {
-                    if (sort_res[topk].first == ground_truth[q][gt]) {
-                        local_r100_1000 ++;
-                        break;
-                    }
-                }
-            }
-            #pragma omp critical 
-            {
-                r100_1000 += local_r100_1000;
-            }
+        //     int local_r1_100 = 0;
+        //     for (int topk = 0; topk < 100; topk++) {
+        //         // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
+        //         if (sort_res[topk].first == ground_truth[q][0]) {
+        //             local_r1_100++;
+        //             break;
+        //         }
+        //     }
+        //     #pragma omp critical 
+        //     {
+        //         r1_100 += local_r1_100;
+        //     }
+        //     int local_r100_1000 = 0;
+        //     for (int gt = 0; gt < 100; gt++) {
+        //         for (int topk = 0; topk < 1000; topk++) {
+        //             if (sort_res[topk].first == ground_truth[q][gt]) {
+        //                 local_r100_1000 ++;
+        //                 break;
+        //             }
+        //         }
+        //     }
+        //     #pragma omp critical 
+        //     {
+        //         r100_1000 += local_r100_1000;
+        //     }
         }
         
-        std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
+        // std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result[CPU]", st, ed);
     }

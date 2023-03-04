@@ -1,4 +1,5 @@
 #include "cuda.h"
+#include "cuda_fp16.h"
 #include "juno_gpu_kernel.cuh"
 #include <stdio.h>
 
@@ -92,6 +93,8 @@ __global__ void calcDensitySearchPoint(float* p, float* q, float* dmax, float* r
     // }
 }
 
+
+
 // query_cluster_mapping_array: [nq, nlists, 2]
 // cluster_bias: [coarse_grained_cluster_num]
 // cluster_query_mapping: [coarse_grained_cluster_num]
@@ -101,13 +104,15 @@ __global__ void query_counter (int *query_cluster_mapping_array, int *cluster_bi
     int *inversed_codebook_map, int *inversed_codebook_map_size, int *inversed_codebook_map_start_address, 
     unsigned int *hit_record, 
     int query_size, int nlists, int D, int M, 
-    int8_t *counter
+    __half *counter
 ) {
-    // int threadID = blockIdx.x * blockDim.x + threadIdx.x;
+    // int q = blockIdx.x * blockDim.x + threadIdx.x;
+    int threadID = blockIdx.x * blockDim.x + threadIdx.x;
+    int q = threadID / (D / M), d = threadID % (D / M);
+    printf ("%d %d\n", q, d) ;
     // int q = threadID / nlists, nl = threadID % nlists;
-    int q = blockIdx.x * blockDim.x + threadIdx.x;
     // if (q < query_size && nl < nlists) {
-    if (q < query_size) {
+    if (q < query_size && d < (D / M)) {
         for (int nl = 0; nl < nlists; nl ++) {
         int tmp_cluster = query_cluster_mapping_array[q * nlists * 2 + nl * 2];
         int query_in_cluster_id = query_cluster_mapping_array[q * nlists * 2 + nl * 2 + 1];
@@ -118,18 +123,19 @@ __global__ void query_counter (int *query_cluster_mapping_array, int *cluster_bi
         int stride = cluster_query_mapping_size[tmp_cluster] ;
 
         unsigned int one = 1, zero = 0;
-        for (int d = 0; d < D / M; d++) {
+        // for (int d = 0; d < D / M; d++) {
             unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
             for (unsigned int bit = 0; bit < 32; bit++) {
                 if ((hit_res & (one << bit)) != zero) {
                     int begin_addr = inversed_codebook_map_start_address[tmp_cluster * (D / M) * 32 + d * 32 + bit] ;
                     int cur_size = inversed_codebook_map_size[tmp_cluster * (D / M) * 32 + d * 32 + bit] ;
                     for (int i = 0; i < cur_size; i ++) {
-                        counter[q * 1000000 + inversed_codebook_map[begin_addr + i]] ++;
+                        counter[q * 1000000 + inversed_codebook_map[begin_addr + i]] ++ ;
+                        // atomicAdd (counter[q * 1000000 + inversed_codebook_map[begin_addr + i]], __half (1)) ;
                     }
                 }
             }
-        }
+        // }
     }
     }
 }
@@ -173,6 +179,9 @@ void counterOnGPU (std::vector<std::vector<std::pair<int, int>>> &query_cluster_
     CUDA_CHECK(cudaMalloc((void**)&d_cluster_bias, sizeof(int) * 1000));
     CUDA_CHECK(cudaMemcpy((void*)d_cluster_bias, (void*)cluster_bias, sizeof(int) * 1000, cudaMemcpyHostToDevice));
 
+    __half *d_counter ;
+    CUDA_CHECK(cudaMalloc((void**)&d_counter, sizeof(__half) * query_size * 1000000)) ;
+
     // query related
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -210,12 +219,13 @@ void counterOnGPU (std::vector<std::vector<std::pair<int, int>>> &query_cluster_
     CUDA_CHECK(cudaMalloc((void**)&d_query_cluster_mapping_array, sizeof(int) * query_size * nlists * 2));
     CUDA_CHECK(cudaMemcpy((void*)d_query_cluster_mapping_array, (void*)query_cluster_mapping_array, sizeof(int) * query_size * nlists * 2, cudaMemcpyHostToDevice));
 
-    int8_t *d_counter ;
-    CUDA_CHECK(cudaMalloc((void**)&d_counter, sizeof(int8_t) * query_size * 1000000)) ;
-    query_counter<<<(query_size + 1023) / 1024, 1024>>> (d_query_cluster_mapping_array, d_cluster_bias, d_cluster_query_mapping_array, d_cluster_query_mapping_array_size, d_inversed_codebook_map_array, d_inversed_codebook_map_array_size, d_inversed_codebook_map_start_address, d_hit_record, query_size, nlists, D, M, d_counter) ;
+    int thread_cnt = query_size * (D / M) ;
+    query_counter<<<(thread_cnt + 1023) / 1024, 1024>>> (d_query_cluster_mapping_array, d_cluster_bias, d_cluster_query_mapping_array, d_cluster_query_mapping_array_size, d_inversed_codebook_map_array, d_inversed_codebook_map_array_size, d_inversed_codebook_map_start_address, d_hit_record, query_size, nlists, D, M, d_counter) ;
 
-    int8_t *counter = new int8_t [query_size * 1000000] ;
-    CUDA_CHECK(cudaMemcpy(counter, d_counter, sizeof(int8_t) * query_size * 1000000, cudaMemcpyDeviceToHost)) ;
+    // __half *counter = new __half [query_size * 1000000] ;
+    // CUDA_CHECK(cudaMemcpy(counter, d_counter, sizeof(__half) * query_size * 1000000, cudaMemcpyDeviceToHost)) ;
+
+    printf ("%s\n", cudaGetErrorString(cudaGetLastError())) ;
 
 #if DEBUG_GPU == 1
     for (int query = 0; query < query_size; query ++) {

@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     printf ("query finished.\n") ;
     server.buildJunoIndexWhole();
     printf ("buildJunoIndexWhole finished.\n") ;
-    query.generateQueryBatch(10);
+    query.generateQueryBatch(1000);
     printf ("generateQueryBatch finished.\n") ;
     int nlists;
     while (std::cin >> nlists) {
