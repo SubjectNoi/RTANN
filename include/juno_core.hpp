@@ -375,8 +375,15 @@ public:
                     sort_res.push_back(std::pair<int, int>(it->first, it->second));
                 }
             }
+#if DEBUG_CPU == 1
+            sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.first < b.first;});
+            for (auto && item : sort_res) {
+                printf ("%d %d\n", item.first, item.second) ;
+            }
+#endif
             // std::cout << "Begin Sort List: " << sort_res.size() << std::endl;
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            // printf ("%d %d\n", sort_res[0].first, sort_res[0].second) ;
             // for (auto && item : sort_res) {
             //     std::cout << item.first << " " << item.second << std::endl;
             // }

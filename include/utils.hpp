@@ -40,6 +40,8 @@
 #define QUERY_BATCH_MAX 10000
 #define VERBOSE 0
 
+// #define DEBUG_CPU 1
+
 enum RT_MODE {
     QUERY_AS_RAY = 0,
     QUERY_AS_TRIANGLE = 1,

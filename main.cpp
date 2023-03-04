@@ -14,9 +14,13 @@ int main(int argc, char** argv) {
     std::string path = "/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/";
     // std::string path = "/home/wtni/RTANN/RTANN/data/SIFT1M/";
     juno::juno_core<float> server(path, SIFT1M);
+    printf ("server finished.\n") ;
     juno::juno_query_total<float> query(path, SIFT1M);
+    printf ("query finished.\n") ;
     server.buildJunoIndexWhole();
-    query.generateQueryBatch(10000);
+    printf ("buildJunoIndexWhole finished.\n") ;
+    query.generateQueryBatch(10);
+    printf ("generateQueryBatch finished.\n") ;
     int nlists;
     while (std::cin >> nlists) {
         if (nlists < 0) break;
