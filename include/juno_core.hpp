@@ -42,6 +42,7 @@ private:
     T****       codebook_entry;         // [C][D/M][E][M]
     int***      codebook_labels;        // [C][D/M][]
     std::vector<int>*** inversed_codebook_map; // [C][D/M][32][]
+    std::vector<int>*** inversed_codebook_map_localid;
     uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
     
@@ -205,15 +206,20 @@ public:
             read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
             printf("Finished\n");
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
+            inversed_codebook_map_localid = new std::vector<int>** [coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 inversed_codebook_map[c] = new std::vector<int>* [D / M];
+                inversed_codebook_map_localid[c] = new std::vector<int>* [D / M];
                 for (int d = 0; d < D / M; d++) {
                     inversed_codebook_map[c][d] = new std::vector<int> [32];
+                    inversed_codebook_map_localid[c][d] = new std::vector<int> [32];
                     for (int e = 0; e < PQ_entry; e++) {
                         inversed_codebook_map[c][d][e].clear();
+                        inversed_codebook_map_localid[c][d][e].clear();
                         for (int n = 0; n < cluster_size[c]; n++) {
                             if (codebook_labels[c][d][n] == e) {
                                 inversed_codebook_map[c][d][e].push_back(cluster_points_mapping[c][n]);
+                                inversed_codebook_map_localid[c][d][e].push_back(min(n, 255));
                             }
                         }
                         sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = inversed_codebook_map[c][d][e].size();

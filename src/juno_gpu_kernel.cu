@@ -371,16 +371,17 @@ void getHitResult(unsigned int* _hit_record,
     cudaEventCreate(&st);
     cudaEventCreate(&ed);
     cudaEventRecord(st);
-    gpuCalcHitResult<<<1, 64>>>(    d_hit_record, 
-                                    _hit_res, 
-                                    _nlists,
-                                    d_query_cluster_mapping,
-                                    d_cluster_bias,
-                                    d_cluster_query_mapping,
-                                    d_cluster_query_size,
-                                    d_inversed_codebook_map,
-                                    d_entry_base_addr,
-                                    d_sub_cluster_size);
+    dim3 block(10000, 1), thread(64, 1);
+    gpuCalcHitResult<<<block, thread>>>(d_hit_record, 
+                                        _hit_res, 
+                                        _nlists,
+                                        d_query_cluster_mapping,
+                                        d_cluster_bias,
+                                        d_cluster_query_mapping,
+                                        d_cluster_query_size,
+                                        d_inversed_codebook_map,
+                                        d_entry_base_addr,
+                                        d_sub_cluster_size);
     CUDA_SYNC_CHECK();
     cudaEventRecord(ed);
     cudaEventSynchronize(ed);
