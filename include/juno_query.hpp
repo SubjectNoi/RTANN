@@ -43,6 +43,11 @@ public:
             case TTI1B:
 
                 break;
+            case DEEP1M:
+                Q = 10000;
+                D = 96;
+                metric = METRIC_L2;
+                break;
             case CUSTOM:
                 Q = 1;
                 D = 4;

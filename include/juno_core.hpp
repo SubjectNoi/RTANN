@@ -45,6 +45,12 @@ private:
     std::vector<int>*** inversed_codebook_map_localid;
     uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
+    int*        all_candidates;         // [10813582]
+    int*        all_candidates_bias;    // [Q]
+    int*        all_candidates_cluster; // [Q]
+    unsigned int*    candidates_belong_on_every_dim; //[10813582][D / M]
+    std::vector<std::vector<int>> cluster_points_mapping;
+    std::vector<int>** points_belongings; // [C][D / M][]
     
     std::map<int, std::vector<int>> points_cluster_mapping;
 
@@ -85,6 +91,13 @@ public:
             case TTI1B:
 
                 break;
+            case DEEP1M:
+                N = 1000000;
+                D = 96;
+                Q = 10000;
+                PQ_entry = 32;
+                metric = METRIC_L2;
+                break;
             case CUSTOM:
                 N = 16;
                 D = 4;
@@ -100,8 +113,12 @@ public:
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
         hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * Q * N));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * 10813582));
         sub_cluster_size = new int[coarse_grained_cluster_num * (D / M) * PQ_entry];
+        all_candidates_bias = new int[Q];
+        all_candidates_cluster = new int[Q];
+        all_candidates = new int[10813582];
+        candidates_belong_on_every_dim = new unsigned int[10813582 * 16];
         printf("Reading Search Points...");
         search_points = new T* [N];
         search_points_flatten = new T[N * D];
@@ -136,13 +153,13 @@ public:
         printf("Finished\n");
         printf("Reading Search Point Labels...");
         search_points_labels = new int[N];
-        std::vector<std::vector<int>> cluster_points_mapping;
         read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
         for (int n = 0; n < N; n++) {
             int label = search_points_labels[n];
             points_cluster_mapping[label].push_back(n);
         }
         cluster_size = new int[coarse_grained_cluster_num];
+        int maxx = 0;
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
             std::vector <int> place_holder;
             place_holder.clear();
@@ -207,19 +224,23 @@ public:
             printf("Finished\n");
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
             inversed_codebook_map_localid = new std::vector<int>** [coarse_grained_cluster_num];
+            points_belongings = new std::vector<int>* [coarse_grained_cluster_num];
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 inversed_codebook_map[c] = new std::vector<int>* [D / M];
                 inversed_codebook_map_localid[c] = new std::vector<int>* [D / M];
+                points_belongings[c] = new std::vector<int> [D / M];
                 for (int d = 0; d < D / M; d++) {
                     inversed_codebook_map[c][d] = new std::vector<int> [32];
                     inversed_codebook_map_localid[c][d] = new std::vector<int> [32];
+                    points_belongings[c][d].clear();
                     for (int e = 0; e < PQ_entry; e++) {
                         inversed_codebook_map[c][d][e].clear();
                         inversed_codebook_map_localid[c][d][e].clear();
                         for (int n = 0; n < cluster_size[c]; n++) {
                             if (codebook_labels[c][d][n] == e) {
                                 inversed_codebook_map[c][d][e].push_back(cluster_points_mapping[c][n]);
-                                inversed_codebook_map_localid[c][d][e].push_back(min(n, 255));
+                                inversed_codebook_map_localid[c][d][e].push_back(n);
+                                points_belongings[c][d].push_back(e);
                             }
                         }
                         sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = inversed_codebook_map[c][d][e].size();
@@ -260,6 +281,7 @@ public:
         assert((nlists < NLISTS_MAX) || "Max nlists exceeded.\n");
         // 1st filtering, can be optimized using CUDA/OpenMP
         struct timeval st, ed;
+        int candidate_sum = 0;
         T** query_data = _query_batch->getQueryData();
         T* query_data_flatten = _query_batch->getFlattenQueryData();
         int query_size = _query_batch->getQuerySize();
@@ -287,8 +309,6 @@ public:
 
         gettimeofday(&ed, NULL);
         elapsed("Calculate L2 Dist[CPU]", st, ed);
-        // Init 
-
 
         gettimeofday(&st, NULL);
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
@@ -299,6 +319,7 @@ public:
         // Can be optimized use OpenMP/CUDA
         // #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
+            all_candidates_bias[q] = candidate_sum;
             int cnt = 0;
             std::vector <T> query_vec;
             query_vec.clear();
@@ -313,17 +334,30 @@ public:
 
             // Select nlists cluster
             for (int nl = 0; nl < nlists; nl++) {
+                int local_size = cluster_size[cluster_centroids_vec[nl].first];
                 // Record a pair, stands for: <the cluster c this query q use, the position this query q falls in the cluster c>
                 query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
                 // Push query q into the query_list of cluster c
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
-                cnt += cluster_size[cluster_centroids_vec[nl].first];
+                cnt += local_size;
+                all_candidates_cluster[q] = cluster_centroids_vec[nl].first;
+                for (int i = 0; i < local_size; i++) {
+                    all_candidates[all_candidates_bias[q] + i] = q;
+                    // for (int d = 0; d < D / M; d++) {
+                    //     candidates_belong_on_every_dim[(all_candidates_bias[q] + i) * (D / M) + d] = points_belongings[all_candidates_cluster[q]][d][i];
+                    // }
+                    for (int d = 0; d < D / M; d+=4) {
+                        for (int id = 0; id < 4; id++) {
+                            candidates_belong_on_every_dim[(all_candidates_bias[q] + i) * 16 + d / 4] |= (unsigned int)(points_belongings[all_candidates_cluster[q]][d][i] << ((3 - id) * 8));
+                        }
+                    }
+                }
             }
             total_candidate[q] = cnt;
+            candidate_sum += cnt;
         }
         gettimeofday(&ed, NULL);
         elapsed("Filtering[CPU]", st, ed);
-
         // 2nd setting ray origins
         gettimeofday(&st, NULL);
         float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
@@ -366,11 +400,13 @@ public:
         elapsed("Ray Tracing", st, ed);
         
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
-        getHitResult(hit_record, hit_res, nlists, query_cluster_mapping, cluster_bias, cluster_query_mapping, cluster_query_size, inversed_codebook_map, sub_cluster_size);
+        // getHitResult(hit_record, hit_res, nlists, query_cluster_mapping, cluster_size, cluster_query_mapping, cluster_query_size, inversed_codebook_map, sub_cluster_size);
+        getHitResult(hit_record, hit_res, nlists, all_candidates, all_candidates_cluster, all_candidates_bias, candidates_belong_on_every_dim);
         // uint8_t *h_hit_res;
         // h_hit_res = new uint8_t[Q * N];
         // CUDA_CHECK(cudaMemcpy(h_hit_res, reinterpret_cast<void*>(hit_res), sizeof(uint8_t) * Q * N, cudaMemcpyDeviceToHost));
         // std::cout << h_hit_res[0] << std::endl;
+
         /*
         gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);

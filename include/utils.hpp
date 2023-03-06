@@ -34,7 +34,7 @@
 #define TRIANGLE_PER_HITABLE 6
 #define HIT_MAGIC_NUMBER 114514
 #define COARSE_GRAIN_CLUSTER_USE_GPU 0
-#define NLISTS_MAX 32
+#define NLISTS_MAX 1
 #define PQ_DIM 2
 #define SCALE 0.75
 #define HIT_REC_PER_C 200
@@ -65,8 +65,9 @@ enum DATASET {
     SIFT1B = 1,
     TTI1M = 2,
     TTI1B = 3,
-    CUSTOM = 4,
-    DATASET_LEN = 5,
+    DEEP1M = 4,
+    CUSTOM = 5,
+    DATASET_LEN = 6,
 };
 
 void elapsed(const char* evt, struct timeval st, struct timeval ed) {
