@@ -365,13 +365,6 @@ public:
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
         
-        bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
-        getHitResult(hit_record, hit_res, nlists, query_cluster_mapping, cluster_bias, cluster_query_mapping, cluster_query_size, inversed_codebook_map, sub_cluster_size);
-        // uint8_t *h_hit_res;
-        // h_hit_res = new uint8_t[Q * N];
-        // CUDA_CHECK(cudaMemcpy(h_hit_res, reinterpret_cast<void*>(hit_res), sizeof(uint8_t) * Q * N, cudaMemcpyDeviceToHost));
-        // std::cout << h_hit_res[0] << std::endl;
-        /*
         gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
         int r1_100 = 0;
@@ -444,7 +437,6 @@ public:
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
-        */
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {
