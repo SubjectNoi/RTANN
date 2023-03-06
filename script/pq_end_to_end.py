@@ -16,7 +16,7 @@ import time
 # import torch    
 # from kmeans_pytorch import kmeans
 
-d = 96
+d = 128
 n = 1000000
 nlists = int(sys.argv[2])
 q = 100
@@ -55,20 +55,20 @@ def ivecs_read(fname):
 def fvecs_read(fname):
     return ivecs_read(fname).view('float32')
 
-# xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
-# xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
-# gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
+xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
+xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
+gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
 
-xb = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_base.fvecs")
-xq = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1B_queries.fvecs")
-gts = ivecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_groundtruth.ivecs")
-for i in range(len(xb)):
-    for j in range(d):
-        xb[i][j] *= 100.0
+# xb = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_base.fvecs")
+# xq = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1B_queries.fvecs")
+# gts = ivecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_groundtruth.ivecs")
+# for i in range(len(xb)):
+#     for j in range(d):
+#         xb[i][j] *= 100.0
 
-for i in range(len(xq)):
-    for j in range(d):
-        xq[i][j] *= 100.0
+# for i in range(len(xq)):
+#     for j in range(d):
+#         xq[i][j] *= 100.0
 
 print("Reading xb/xq/gt Finished")
 xb = xb[0:n]
@@ -81,13 +81,10 @@ for i in range(d):
 
 # kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
 print ("Start Clustering")
-# print(type(xb))
-kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=1).fit(xb)
+kmeans = KMeans(n_clusters=nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(xb)
 cluster_centroids = kmeans.cluster_centers_
 labels = kmeans.labels_
-# labels, cluster_centroids = kmeans(X=xb, num_clusters=nlists, distance='euclidean', device=torch.device('cuda:0'))
-# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
-f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/DEEP1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
+f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
 for cc in cluster_centroids:
     for x in cc:
         f1.write("%f " % (x))
@@ -99,7 +96,7 @@ for l in labels:
 f1.close()
 
 # cluster_centroids, labels = [], []
-# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids_%d" % (nlists)).readlines()
 
 # fcentroids, flabels = f1[0:nlists], f1[-1]
 # flabels = flabels.split()[0:n]
@@ -141,10 +138,10 @@ for keys in cluster_mapping:
     for pq in range(pq_d):
         X = [[x[pq * 2], x[pq * 2 + 1]] for x in [y[1] for y in current_cluster]]
         X = np.array(X)
-        subkmeans = KMeans(n_clusters=pq_nlists, init='k-means++', n_init=1).fit(X)
+        subkmeans = KMeans(n_clusters=pq_nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(X)
         sub_centroids = subkmeans.cluster_centers_
         sub_labels = subkmeans.labels_
-        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/DEEP1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
+        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
         for item in sub_centroids:
             for x in item:
                 fcluster.write("%f " % (x))
@@ -153,7 +150,7 @@ for keys in cluster_mapping:
         for item in sub_labels:
             fcluster.write("%d " % (item))
         fcluster.close()
-        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
         # sub_centroids, sub_labels = [], []
         # fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
         # fsublabels = fsublabels.split()[0:len(current_cluster)]
@@ -272,7 +269,7 @@ for qid in range(len(xq)):
             selected_codebook_points_num = 0
             for i in range(len(codebook_line_with_id)):
                 tmp_dist = l2(seg, codebook_line_with_id[i][1])
-                if tmp_dist < thres * max_dist[sid]:
+                if tmp_dist < thres * 100.0:
                     selected_codebook_points_num += 1
             # if selected_codebook_points_num == 0:
             #     selected_codebook_points_num = 1
@@ -294,12 +291,12 @@ for qid in range(len(xq)):
             for sceid in sel_codebook_entry_id:
                 mask |= (1 << sceid)
             for sceid in sel_codebook_entry_id:
-                # mask |= (1 << sceid)
+                mask |= (1 << sceid)
                 for i in TREE[skey][sid][sceid]:
                     # if i[0] == 1884: print("%2d, %2d,  %08x, %08x, %s" % (sid, sceid, mask, (mask & ((1 << sceid))), "Hit" if ((mask & ((1 << sceid))) != 0) else "   "))
                     seg_candidate.append(i[0])
-            # print("%08x" % (mask), end=' ')
-            # if sid % 16 == 15: print()
+            print("%08x" % (mask), end=' ')
+            if sid % 16 == 15: print()
             for sc in seg_candidate:
                 if sc not in occurance:
                     occurance[sc] = 0

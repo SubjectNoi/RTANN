@@ -58,7 +58,7 @@ public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
               int _coarse_grained_cluster_num=1000, 
-              T _radius=0.15,
+              T _radius=0.5,
               bool _use_pq=true, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
@@ -219,7 +219,7 @@ public:
                         for (int n = 0; n < cluster_size[c]; n++) {
                             if (codebook_labels[c][d][n] == e) {
                                 inversed_codebook_map[c][d][e].push_back(cluster_points_mapping[c][n]);
-                                inversed_codebook_map_localid[c][d][e].push_back(min(n, 255));
+                                inversed_codebook_map_localid[c][d][e].push_back(n);
                             }
                         }
                         sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = inversed_codebook_map[c][d][e].size();
@@ -263,8 +263,8 @@ public:
         T** query_data = _query_batch->getQueryData();
         T* query_data_flatten = _query_batch->getFlattenQueryData();
         int query_size = _query_batch->getQuerySize();
-        int cluster_bias[1000] = {-1};
-        int cluster_query_size[1000] = {0};
+        int cluster_bias[coarse_grained_cluster_num] = {-1};
+        int cluster_query_size[coarse_grained_cluster_num] = {0};
         // Record which queries fall into the cluster C
         std::vector<std::vector<int>> cluster_query_mapping;
         int *total_candidate = new int[query_size];
@@ -369,7 +369,7 @@ public:
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
         int r1_100 = 0;
         int r100_1000 = 0;
-        // #pragma omp parallel for
+        #pragma omp parallel for
         for (int q = 0; q < query_size; q++) {
             std::vector <std::pair<int, int>> sort_res;
             sort_res.clear();
@@ -415,7 +415,7 @@ public:
                     break;
                 }
             }
-            // #pragma omp critical 
+            #pragma omp critical 
             {
                 r1_100 += local_r1_100;
             }
@@ -428,10 +428,10 @@ public:
                     }
                 }
             }
-            // #pragma omp critical 
-            // {
+            #pragma omp critical 
+            {
                 r100_1000 += local_r100_1000;
-            // }
+            }
         }
         
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
