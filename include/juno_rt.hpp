@@ -70,7 +70,7 @@ private:
     float factors[64] = {226.91, 226.292, 234.105, 245.577, 279.63, 236.516, 231.948, 269.431, 274.614, 244.002, 235.553, 258.38, 243.939, 237.857, 229.811, 229.819, 244.322, 226.982, 252.21, 246.903, 265.966, 238.008, 231.935, 249.658, 278.304, 241.357, 236.966, 259.187, 245.247, 245.449, 244.663, 229.863, 238.673, 245.904, 235.468, 238.296, 266.595, 246.564, 229.863, 245.392, 275.224, 245.247, 239.019, 254.136, 239.708, 236.212, 248.244, 244.125, 237.346, 247.491, 225.754, 225.657, 276.957, 235.85, 229.142, 265.548, 285.272, 237.186, 252.723, 263.139, 240.983, 220.048, 237.626, 236.326};
         
 public:
-    juno_rt(int _Q=10000) {
+    juno_rt(int _Q=10000, int _D=128) {
         options.logCallbackFunction = &context_log_cb;
         options.logCallbackLevel = 4;
         CUDA_CHECK(cudaFree(0));
@@ -79,7 +79,7 @@ public:
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin), sizeof(float3) * 64 * 80));
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin_whole), sizeof(float3) * _Q * 64 * NLISTS_MAX));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin_whole), sizeof(float3) * _Q * (_D / 2) * NLISTS_MAX));
         cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(Params));
     }
 
@@ -106,10 +106,10 @@ public:
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
                     float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
                     float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
-                    float factor = 0.2 * std::min(x, y);
+                    float factor = 0.01 * std::min(x, y);
                     centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
                     // if (c == 432 && d == 0) printf("Prim %d:(%.6f, %.6f, %.6f)\n", prim_idx, x, y, 1.0 * (c * 128 + 2 * d + 1));
-                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.3 + factor);
+                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
                     prim_idx++;
                 }
             }

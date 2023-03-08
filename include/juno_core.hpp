@@ -85,6 +85,13 @@ public:
             case TTI1B:
 
                 break;
+            case DEEP1M:
+                N = 1000000;
+                D = 96;
+                Q = 10000;
+                PQ_entry = 32;
+                metric = METRIC_L2;
+                break;
             case CUSTOM:
                 N = 16;
                 D = 4;
@@ -233,7 +240,7 @@ public:
     void setupBVHDict() {
         OPTIX_CHECK(optixInit());
         for (int c = 0; c < coarse_grained_cluster_num; c++) {
-            bvh_dict[c] = new juno_rt<T>();
+            bvh_dict[c] = new juno_rt<T>(Q, D);
             bvh_dict[c]->constructBVHforLabelWithRadius(c, search_points, search_points_labels, N, D, stat, radius, metric);
             
         }
