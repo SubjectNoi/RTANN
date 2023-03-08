@@ -1,6 +1,11 @@
 #include "cuda.h"
 #include "juno_gpu_kernel.cuh"
 #include <stdio.h>
+
+// thrust sort
+#include <thrust/sort.h>
+#include <thrust/execution_policy.h>
+
 const float L2max = 1964.62;
 namespace juno {
 
@@ -264,6 +269,12 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
     // std::cout << recalls / (1.0 * _Q) << std::endl;
 }
 
+// int              candidate_sum;          // 10813582: total num of candidates
+// int*             all_candidates;         // [10813582]: query ID of every candidate
+// int*             all_candidates_bias;    // [Q]: starting address of candidates of q-th query
+// int*             all_candidates_cluster; // [Q]: selected cluster of q-th query
+// unsigned int*    candidates_belong_on_every_dim; //[10813582][64 / 4 = 16]: i-th candidate, (4 * d)-th dim to (4 * d + 3)-th dim, codebook entry
+// uint8_t*         hit_res;   // [10813582]: query, cluster, candidates
 __global__ void gpuCalcHitResult(unsigned int* __hit_record, 
                                  uint8_t* __hit_res, 
                                  int __nlists,
@@ -271,7 +282,8 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
                                  int* __all_candidates,
                                  int* __all_candidates_cluster,
                                  int* __all_candidates_bias,
-                                 unsigned int* __candidates_belong_on_every_dim
+                                 unsigned int* __candidates_belong_on_every_dim, 
+                                 int* __qid_hitrecord_mapping
                                  )
                                 //  int* __query_cluster_mapping,
                                 //  int* __cluster_bias,
@@ -309,10 +321,12 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
         for (int d = 0; d < 16; d++) {
             unsigned int belonging = __candidates_belong_on_every_dim[tid * 16 + d];
             for (int id = 0; id < 4; id++) {
-                int hit_mask = __hit_record[qid * 64 + d * 4 + id];
+                unsigned int hit_mask = __hit_record[__qid_hitrecord_mapping[qid * 64 + d * 4 + id]];
+                // int hit_mask = __hit_record[qid * 64 + d * 4 + id];
+                // belonging >> ((3 - id) * 8): codebook entry id
                 uint8_t belong = (uint8_t)((uint8_t)256) & (belonging >> ((3 - id) * 8));
                 if (((1 << belong) & hit_mask) != 0) {
-                    cnt++;
+                    cnt++; // entry hit
                 }
             }
         }
@@ -320,13 +334,20 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
     }
 }
 
+
+// int*        all_candidates;         // [10813582]: query ID of every candidate
+// int*        all_candidates_bias;    // [Q]: starting address of candidates of q-th query
+// int*        all_candidates_cluster; // [Q]: selected cluster of q-th query
+// unsigned int*    candidates_belong_on_every_dim; //[10813582][D / M]: i-th candidate, (4 * d)-th dim to (4 * d + 3)-th dim, codebook entry
+
 void getHitResult(unsigned int* _hit_record, 
                   uint8_t* _hit_res, 
                   int _nlists,
                   int* _all_candidates,
                   int* _all_candidates_cluster,
                   int* _all_candidates_bias,
-                  unsigned int* _candidates_belong_on_every_dim)
+                  unsigned int* _candidates_belong_on_every_dim, 
+                  int* _qid_hitrecord_mapping)
                 //   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
                 //   int* _cluster_bias,
                 //   std::vector<std::vector<int>> _cluster_query_mapping,
@@ -355,6 +376,10 @@ void getHitResult(unsigned int* _hit_record,
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_candidates_belong_on_every_dim), sizeof(unsigned int) * candidate_sum * 16));
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_candidates_belong_on_every_dim), _candidates_belong_on_every_dim, sizeof(unsigned int) * candidate_sum * 16, cudaMemcpyHostToDevice));
 
+    int *d_qid_hitrecord_mapping;
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_qid_hitrecord_mapping), sizeof(int) * Q * (D / M)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_qid_hitrecord_mapping), _qid_hitrecord_mapping, sizeof(int) * Q * (D / M), cudaMemcpyHostToDevice));
+
     cudaEvent_t st, ed;
     cudaEventCreate(&st);
     cudaEventCreate(&ed);
@@ -367,7 +392,8 @@ void getHitResult(unsigned int* _hit_record,
                                         d_all_candidates,
                                         d_all_candidates_cluster,
                                         d_all_candidates_bias,
-                                        d_candidates_belong_on_every_dim);
+                                        d_candidates_belong_on_every_dim, 
+                                        d_qid_hitrecord_mapping);
                                         // d_query_cluster_mapping,
                                         // d_cluster_bias,
                                         // d_cluster_query_mapping,
@@ -381,6 +407,16 @@ void getHitResult(unsigned int* _hit_record,
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
     std::cout << "GPU Hit Res: " << ms << std::endl;
+
+    cudaEventRecord(st);
+    thrust::sort (thrust::device, _hit_res, _hit_res + candidate_sum, thrust::greater<int>());
+    CUDA_SYNC_CHECK();
+    cudaEventRecord(ed);
+    cudaEventSynchronize(ed);
+    cudaEventElapsedTime(&ms, st, ed);
+    std::cout << "GPU Sort: " << ms << std::endl;
+
+    // TODO: discriminate the candidates by queries
 }
 
 }; // namespace juno

@@ -45,12 +45,12 @@ private:
     std::vector<int>*** inversed_codebook_map_localid;
     uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
-    int*        all_candidates;         // [10813582]
-    int*        all_candidates_bias;    // [Q]
-    int*        all_candidates_cluster; // [Q]
-    unsigned int*    candidates_belong_on_every_dim; //[10813582][D / M]
+    int*        all_candidates;         // [10813582]: query ID of every candidate, order: query, nl, candidates
+    int*        all_candidates_bias;    // [Q]: starting address of candidates of q-th query
+    int*        all_candidates_cluster; // [Q]: selected cluster of q-th query
+    unsigned int*    candidates_belong_on_every_dim; //[10813582][16]: i-th candidate, (4 * d)-th dim to (4 * d + 3)-th dim, codebook entry
     std::vector<std::vector<int>> cluster_points_mapping;
-    std::vector<int>** points_belongings; // [C][D / M][]
+    std::vector<int>** points_belongings; // [C][D / M][]: c-th cluster, d-th dim, every point belongs to which codebook entry
     
     std::map<int, std::vector<int>> points_cluster_mapping;
 
@@ -340,6 +340,7 @@ public:
                 // Push query q into the query_list of cluster c
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
                 cnt += local_size;
+                // Problem: only satisfies when nl = 1
                 all_candidates_cluster[q] = cluster_centroids_vec[nl].first;
                 for (int i = 0; i < local_size; i++) {
                     all_candidates[all_candidates_bias[q] + i] = q;
@@ -401,7 +402,25 @@ public:
         
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
         // getHitResult(hit_record, hit_res, nlists, query_cluster_mapping, cluster_size, cluster_query_mapping, cluster_query_size, inversed_codebook_map, sub_cluster_size);
-        getHitResult(hit_record, hit_res, nlists, all_candidates, all_candidates_cluster, all_candidates_bias, candidates_belong_on_every_dim);
+        
+        int* qid_hitrecord_mapping = new int[Q * (D / M)] ;
+        for (int q = 0; q < Q; q ++) {
+            int cluster = all_candidates_cluster[q];
+            int query_in_cluster_id = query_cluster_mapping[q][0].second; // nlist = 1
+            int base_addr = cluster_bias[cluster] * 64;
+            int stride = cluster_query_size[cluster];
+            for (int d = 0; d < D / M; d ++) {
+                qid_hitrecord_mapping[q * (D / M) + d] = base_addr + d * stride + query_in_cluster_id;
+            }
+        }
+
+        //     int tmp_cluster         = __query_cluster_mapping[2 * (qid * __nlists + nl) + 0];
+        //     int query_in_cluster_id = __query_cluster_mapping[2 * (qid * __nlists + nl) + 1];
+        //     int base_addr           = __cluster_bias[tmp_cluster] * 64;
+        //     int stride              = __cluster_query_size[tmp_cluster];
+        //     unsigned int hit_rec    = __hit_record[base_addr + query_in_cluster_id + did * stride];
+        
+        getHitResult(hit_record, hit_res, nlists, all_candidates, all_candidates_cluster, all_candidates_bias, candidates_belong_on_every_dim, qid_hitrecord_mapping);
         // uint8_t *h_hit_res;
         // h_hit_res = new uint8_t[Q * N];
         // CUDA_CHECK(cudaMemcpy(h_hit_res, reinterpret_cast<void*>(hit_res), sizeof(uint8_t) * Q * N, cudaMemcpyDeviceToHost));

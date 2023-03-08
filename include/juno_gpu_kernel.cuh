@@ -24,7 +24,8 @@ void getHitResult(unsigned int* _hit_record,
                   int* _all_candidates,
                   int* _all_candidates_cluster,
                   int* _all_candidates_bias,
-                  unsigned int* _candidates_belong_on_every_dim);
+                  unsigned int* _candidates_belong_on_every_dim, 
+                  int* _qid_hitrecord_mapping);
                 //   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
                 //   int* _cluster_bias,
                 //   std::vector<std::vector<int>> _cluster_query_mapping,
