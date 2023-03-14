@@ -274,9 +274,9 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
 // int*             all_candidates_bias;    // [Q]: starting address of candidates of q-th query
 // int*             all_candidates_cluster; // [Q]: selected cluster of q-th query
 // unsigned int*    candidates_belong_on_every_dim; //[10813582][64 / 4 = 16]: i-th candidate, (4 * d)-th dim to (4 * d + 3)-th dim, codebook entry
-// uint8_t*         hit_res;   // [10813582]: query, cluster, candidates
+// uint8_t*         hit_res;   // [10813582 * 2]: candidate ID, hit count
 __global__ void gpuCalcHitResult(unsigned int* __hit_record, 
-                                 uint8_t* __hit_res, 
+                                 thrust::pair<uint8_t, int> *__hit_res, 
                                  int __nlists,
                                  int __candidate_sum,
                                  int* __all_candidates,
@@ -324,13 +324,14 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
                 unsigned int hit_mask = __hit_record[__qid_hitrecord_mapping[qid * 64 + d * 4 + id]];
                 // int hit_mask = __hit_record[qid * 64 + d * 4 + id];
                 // belonging >> ((3 - id) * 8): codebook entry id
-                uint8_t belong = (uint8_t)((uint8_t)256) & (belonging >> ((3 - id) * 8));
+                uint8_t belong = (uint8_t)((uint8_t)255) & (belonging >> ((3 - id) * 8));
                 if (((1 << belong) & hit_mask) != 0) {
                     cnt++; // entry hit
                 }
             }
         }
-        __hit_res[tid] = cnt;
+        __hit_res[tid].first = cnt ;
+        __hit_res[tid].second = tid ;
     }
 }
 
@@ -341,13 +342,15 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
 // unsigned int*    candidates_belong_on_every_dim; //[10813582][D / M]: i-th candidate, (4 * d)-th dim to (4 * d + 3)-th dim, codebook entry
 
 void getHitResult(unsigned int* _hit_record, 
-                  uint8_t* _hit_res, 
+                //   uint8_t* _hit_res, 
+                  thrust::pair<uint8_t, int> *_hit_res, 
                   int _nlists,
                   int* _all_candidates,
                   int* _all_candidates_cluster,
                   int* _all_candidates_bias,
                   unsigned int* _candidates_belong_on_every_dim, 
-                  int* _qid_hitrecord_mapping)
+                  int* _qid_hitrecord_mapping, 
+                  std::vector<std::vector<int>> cluster_points_mapping)
                 //   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
                 //   int* _cluster_bias,
                 //   std::vector<std::vector<int>> _cluster_query_mapping,
@@ -408,15 +411,40 @@ void getHitResult(unsigned int* _hit_record,
     cudaEventElapsedTime(&ms, st, ed);
     std::cout << "GPU Hit Res: " << ms << std::endl;
 
-    cudaEventRecord(st);
-    thrust::sort (thrust::device, _hit_res, _hit_res + candidate_sum, thrust::greater<int>());
-    CUDA_SYNC_CHECK();
-    cudaEventRecord(ed);
-    cudaEventSynchronize(ed);
-    cudaEventElapsedTime(&ms, st, ed);
-    std::cout << "GPU Sort: " << ms << std::endl;
+    // cudaEventRecord(st);
+    // thrust::sort (thrust::device, _hit_res, _hit_res + candidate_sum);
+    // CUDA_SYNC_CHECK();
+    // cudaEventRecord(ed);
+    // cudaEventSynchronize(ed);
+    // cudaEventElapsedTime(&ms, st, ed);
+    // std::cout << "GPU Sort: " << ms << std::endl;
 
     // TODO: discriminate the candidates by queries
+    // TODO: on CUDA
+    thrust::pair<uint8_t, int> *hit_res = new thrust::pair<uint8_t, int> [candidate_sum];
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(hit_res), _hit_res, sizeof(thrust::pair<uint8_t, int>) * candidate_sum, cudaMemcpyDeviceToHost));
+    
+    int *top100 = new int [Q * 100], *cnt = new int [Q * 100], *top100_cnt = new int [Q];
+    memset(top100_cnt, 0, sizeof(int) * Q);
+    for (int i = 0; i < candidate_sum; i++) {
+        int candidate_id = hit_res[i].second ;
+        int qid = _all_candidates[candidate_id];
+        int cluster = _all_candidates_cluster[qid];
+        int in_cluster_id = candidate_id - _all_candidates_bias[qid] ;
+        int real_id = cluster_points_mapping[cluster][in_cluster_id] ;
+        if (top100_cnt[qid] < 100) {
+            cnt[qid * 100 + top100_cnt[qid]] = hit_res[i].first ;
+            top100[qid * 100 + top100_cnt[qid]] = real_id ;
+            top100_cnt[qid] ++ ;
+        }
+    }
+
+    for (int q = 0; q < 100; q ++) {
+        printf ("q: %d\n", q) ;
+        for (int i = 0; i < 10; i ++)
+            printf("%d: %d\n", top100[q * 100 + i], cnt[q * 100 + i]) ;
+        printf("\n") ;
+    }
 }
 
 }; // namespace juno

@@ -5,6 +5,10 @@
 #include "utils.hpp"
 #include "juno_rt.hpp"
 #include "juno_query.hpp"
+
+// thrust
+#include <thrust/pair.h>
+
 namespace juno {
 
 template <typename T>
@@ -43,7 +47,8 @@ private:
     int***      codebook_labels;        // [C][D/M][]
     std::vector<int>*** inversed_codebook_map; // [C][D/M][32][]
     std::vector<int>*** inversed_codebook_map_localid;
-    uint8_t*    hit_res;
+    thrust::pair<uint8_t, int> *hit_res ;
+    // uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
     int*        all_candidates;         // [10813582]: query ID of every candidate, order: query, nl, candidates
     int*        all_candidates_bias;    // [Q]: starting address of candidates of q-th query
@@ -113,7 +118,7 @@ public:
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
         hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * 10813582));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(thrust::pair<uint8_t, int>) * 10813582));
         sub_cluster_size = new int[coarse_grained_cluster_num * (D / M) * PQ_entry];
         all_candidates_bias = new int[Q];
         all_candidates_cluster = new int[Q];
@@ -420,19 +425,21 @@ public:
         //     int stride              = __cluster_query_size[tmp_cluster];
         //     unsigned int hit_rec    = __hit_record[base_addr + query_in_cluster_id + did * stride];
         
-        getHitResult(hit_record, hit_res, nlists, all_candidates, all_candidates_cluster, all_candidates_bias, candidates_belong_on_every_dim, qid_hitrecord_mapping);
+        printf ("GPU: \n") ;
+        getHitResult(hit_record, hit_res, nlists, all_candidates, all_candidates_cluster, all_candidates_bias, candidates_belong_on_every_dim, qid_hitrecord_mapping, cluster_points_mapping);
         // uint8_t *h_hit_res;
         // h_hit_res = new uint8_t[Q * N];
         // CUDA_CHECK(cudaMemcpy(h_hit_res, reinterpret_cast<void*>(hit_res), sizeof(uint8_t) * Q * N, cudaMemcpyDeviceToHost));
         // std::cout << h_hit_res[0] << std::endl;
 
-        /*
         gettimeofday(&st, NULL);
-        bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
+        // bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
         int r1_100 = 0;
         int r100_1000 = 0;
+        printf ("CPU: \n") ;
         // #pragma omp parallel for
-        for (int q = 0; q < query_size; q++) {
+        // for (int q = 0; q < query_size; q++) {
+        for (int q = 0; q < 100; q++) {
             std::vector <std::pair<int, int>> sort_res;
             sort_res.clear();
             for (int nl = 0; nl < nlists; nl++) {
@@ -469,6 +476,14 @@ public:
                 }
             }
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            
+            if (q < 100) {
+                printf("q: %d\n", q) ;
+                for (int i = 0; i < 10; i ++)
+                    printf("%d: %d\n", sort_res[i].first, sort_res[i].second);
+                printf("\n") ;
+            }
+            
             int local_r1_100 = 0;
             for (int topk = 0; topk < 100; topk++) {
                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
@@ -499,7 +514,6 @@ public:
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
-        */
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {

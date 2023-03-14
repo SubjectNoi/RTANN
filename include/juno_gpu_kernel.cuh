@@ -12,6 +12,9 @@
 #include <sutil/sutil.h>
 #include <sutil/Camera.h>
 #include <sutil/Trackball.h>
+
+#include <thrust/pair.h>
+
 namespace juno {
 
 void plotQueryWithDensity(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C);
@@ -19,13 +22,15 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
 void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat);
 
 void getHitResult(unsigned int* _hit_record, 
-                  uint8_t* _hit_res, 
+                  // uint8_t* _hit_res, 
+                  thrust::pair<uint8_t, int> *_hit_res, 
                   int _nlists,
                   int* _all_candidates,
                   int* _all_candidates_cluster,
                   int* _all_candidates_bias,
                   unsigned int* _candidates_belong_on_every_dim, 
-                  int* _qid_hitrecord_mapping);
+                  int* _qid_hitrecord_mapping, 
+                  std::vector<std::vector<int>> cluster_points_mapping);
                 //   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
                 //   int* _cluster_bias,
                 //   std::vector<std::vector<int>> _cluster_query_mapping,
