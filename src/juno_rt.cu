@@ -44,8 +44,20 @@ extern "C" __global__ void __anyhit__ah() {
     // const float t = optixGetRayTmax();
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
-    unsigned int one = 1;
-    htData->hit_record[idx.x] |= (one << (prim_idx % 32));
+    int query = idx.x % 10000 ; // fake, TODO: alignment
+    int cluster = prim_idx / (64 * 32) ;
+    int dim = prim_idx % (64 * 32) / 32;
+    int bit = prim_idx % 32;
+    int index = 0 ;
+    for (int i = 0; i < 8; i ++) { // nlists
+        if (htData -> query_selected_clusters[query * 8 + i] == cluster) {
+            index = i ;
+            break ;
+        }
+    }
+    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] ++ ;
+    // unsigned int one = 1;
+    // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
     // htData->prim_hit[prim_idx>>1] = 114514;
     // htData->prim_hit[prim_idx >> 1] = 114514;
     optixIgnoreIntersection();

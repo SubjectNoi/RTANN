@@ -21,7 +21,9 @@ struct MissData {
 };
 
 struct HitGroupData {
-    unsigned int* hit_record;
+    // unsigned int* hit_record;
+    uint8_t *hit_record ;
+    int *query_selected_clusters ; // query * nlists
 };
 
 template <typename T>
@@ -63,7 +65,9 @@ private:
     float3*                         d_ray_origin;
     float3*                         d_ray_origin_whole;
     Params                          params;
-    unsigned int*                   d_hit_record;
+    // unsigned int*                   d_hit_record;
+    uint8_t*                        d_hit_record;
+    int*                            d_query_selected_clusters;
     int                             hitable_num;
     int                             dim_pair;
 
@@ -406,13 +410,20 @@ public:
         sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
         sbt.missRecordCount = 1;  
                 
-        int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
+        // int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
+        // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
+        // hardcode, query * nlists * dim * bit
+        int d_hit_record_size = 10000 * 8 * 64 * 32 ;
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(uint8_t) * d_hit_record_size)) ;
+        int d_query_selected_clusters_size = 10000 * 8 ; // query * nlists
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_query_selected_clusters), sizeof(int) * d_query_selected_clusters_size)) ;
+
         CUdeviceptr hitgroup_record;
         size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
         HitGroupSbtRecord hg_sbt;
         hg_sbt.data.hit_record = d_hit_record;
+        hg_sbt.data.query_selected_clusters = d_query_selected_clusters ;
         OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbt));
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(hitgroup_record), &hg_sbt, hitgroup_record_size, cudaMemcpyHostToDevice));
         sbt.hitgroupRecordBase = hitgroup_record;
@@ -431,6 +442,10 @@ public:
         CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned int) * size, cudaMemcpyDeviceToHost));
     }
 
+    void setQuerySelectedClusters (int* query_selected_clusters, int size) {
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_query_selected_clusters), query_selected_clusters, sizeof(int) * size, cudaMemcpyHostToDevice));
+    }
+
     // static void initRayOriginArray(int Q, int D, int M, int _nlists) {
     //     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_ray_origin), sizeof(float3) * Q * _nlists * D / M));
     // }
@@ -447,7 +462,7 @@ public:
         return &sbt;
     }
 
-    unsigned int* getPrimitiveHit() {
+    uint8_t* getPrimitiveHit() {
         return d_hit_record;
     }
 

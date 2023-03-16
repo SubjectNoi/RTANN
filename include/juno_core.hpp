@@ -359,6 +359,12 @@ public:
         gettimeofday(&ed, NULL);
         elapsed("Setting Ray Origin[CPU]", st, ed);
 
+        int *query_selected_clusters = new int [query_size * nlists];
+        for (int i = 0; i < query_size; i ++)
+            for (int j = 0; j < nlists; j ++)
+                query_selected_clusters[i * nlists + j] = query_cluster_mapping[i][j].first;
+        bvh_dict[0] -> setQuerySelectedClusters(query_selected_clusters, query_size * nlists);
+
         gettimeofday(&st, NULL);
         bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
         gettimeofday(&ed, NULL);
@@ -372,78 +378,78 @@ public:
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
         
-        gettimeofday(&st, NULL);
-        bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
-        int r1_100 = 0;
-        int r100_1000 = 0;
-        #pragma omp parallel for
-        for (int q = 0; q < query_size; q++) {
-            std::vector <std::pair<int, int>> sort_res;
-            sort_res.clear();
-            for (int nl = 0; nl < nlists; nl++) {
-                int tmp_cluster = query_cluster_mapping[q][nl].first;
-                int query_in_cluster_id = query_cluster_mapping[q][nl].second;
-#if VERBOSE == 1
-                printf("Query: %d, Cluster: %d, Bias: %d\n", q, tmp_cluster, query_in_cluster_id);
-#endif
-                int base_addr = cluster_bias[tmp_cluster] * D / M;
-                int stride = cluster_query_mapping[tmp_cluster].size();
-                std::unordered_map <int, int> point_counter_mapping;
-                unsigned int one = 1, zero = 0;
-                for (int d = 0; d < D / M; d++) {
-                    unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
-                    for (unsigned int bit = 0; bit < 32; bit++) {
-                        if ((hit_res & (one << bit)) != zero) {
-                            // int cnt = 0;
-                            for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
-                                point_counter_mapping[item] ++;
-                                // cnt ++;
-                            }
-                            // std::cout << cnt << "/" << total_candidate[q] << std::endl;
-                        }
-                    }
-#if VERBOSE == 1
-                    printf("%08x%c", hit_res, (d % 16 == 15) ? '\n' : ' ');
-#endif
-                }
-#if VERBOSE == 1
-                printf("\n");
-#endif
-                for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
-                    sort_res.push_back(std::pair<int, int>(it->first, it->second));
-                }
-            }
-            sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
-            int local_r1_100 = 0;
-            for (int topk = 0; topk < 100; topk++) {
-                // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
-                if (sort_res[topk].first == ground_truth[q][0]) {
-                    local_r1_100++;
-                    break;
-                }
-            }
-            #pragma omp critical 
-            {
-                r1_100 += local_r1_100;
-            }
-            int local_r100_1000 = 0;
-            for (int gt = 0; gt < 100; gt++) {
-                for (int topk = 0; topk < 1000; topk++) {
-                    if (sort_res[topk].first == ground_truth[q][gt]) {
-                        local_r100_1000 ++;
-                        break;
-                    }
-                }
-            }
-            #pragma omp critical 
-            {
-                r100_1000 += local_r100_1000;
-            }
-        }
+//         gettimeofday(&st, NULL);
+//         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
+//         int r1_100 = 0;
+//         int r100_1000 = 0;
+//         #pragma omp parallel for
+//         for (int q = 0; q < query_size; q++) {
+//             std::vector <std::pair<int, int>> sort_res;
+//             sort_res.clear();
+//             for (int nl = 0; nl < nlists; nl++) {
+//                 int tmp_cluster = query_cluster_mapping[q][nl].first;
+//                 int query_in_cluster_id = query_cluster_mapping[q][nl].second;
+// #if VERBOSE == 1
+//                 printf("Query: %d, Cluster: %d, Bias: %d\n", q, tmp_cluster, query_in_cluster_id);
+// #endif
+//                 int base_addr = cluster_bias[tmp_cluster] * D / M;
+//                 int stride = cluster_query_mapping[tmp_cluster].size();
+//                 std::unordered_map <int, int> point_counter_mapping;
+//                 unsigned int one = 1, zero = 0;
+//                 for (int d = 0; d < D / M; d++) {
+//                     unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
+//                     for (unsigned int bit = 0; bit < 32; bit++) {
+//                         if ((hit_res & (one << bit)) != zero) {
+//                             // int cnt = 0;
+//                             for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
+//                                 point_counter_mapping[item] ++;
+//                                 // cnt ++;
+//                             }
+//                             // std::cout << cnt << "/" << total_candidate[q] << std::endl;
+//                         }
+//                     }
+// #if VERBOSE == 1
+//                     printf("%08x%c", hit_res, (d % 16 == 15) ? '\n' : ' ');
+// #endif
+//                 }
+// #if VERBOSE == 1
+//                 printf("\n");
+// #endif
+//                 for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
+//                     sort_res.push_back(std::pair<int, int>(it->first, it->second));
+//                 }
+//             }
+//             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+//             int local_r1_100 = 0;
+//             for (int topk = 0; topk < 100; topk++) {
+//                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
+//                 if (sort_res[topk].first == ground_truth[q][0]) {
+//                     local_r1_100++;
+//                     break;
+//                 }
+//             }
+//             #pragma omp critical 
+//             {
+//                 r1_100 += local_r1_100;
+//             }
+//             int local_r100_1000 = 0;
+//             for (int gt = 0; gt < 100; gt++) {
+//                 for (int topk = 0; topk < 1000; topk++) {
+//                     if (sort_res[topk].first == ground_truth[q][gt]) {
+//                         local_r100_1000 ++;
+//                         break;
+//                     }
+//                 }
+//             }
+//             #pragma omp critical 
+//             {
+//                 r100_1000 += local_r100_1000;
+//             }
+//         }
         
-        std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
-        gettimeofday(&ed, NULL);
-        elapsed("Computing Hit Result", st, ed);
+//         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
+//         gettimeofday(&ed, NULL);
+//         elapsed("Computing Hit Result", st, ed);
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {
