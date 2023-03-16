@@ -22,7 +22,7 @@ struct MissData {
 
 struct HitGroupData {
     // unsigned int* hit_record;
-    uint8_t *hit_record ;
+    uint8_t *hit_record ; // query * nlists * (D / M) * PQ_entry
     int *query_selected_clusters ; // query * nlists
 };
 

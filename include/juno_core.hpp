@@ -5,6 +5,7 @@
 #include "utils.hpp"
 #include "juno_rt.hpp"
 #include "juno_query.hpp"
+
 namespace juno {
 
 template <typename T>
@@ -36,6 +37,7 @@ private:
     int*        search_points_labels;
     int**       ground_truth;
     int*        ground_truth_flatten;
+    std::vector<std::vector<int>> cluster_points_mapping ;
     int*        cluster_size;
     T           radius;
     T**         stat;
@@ -143,7 +145,7 @@ public:
         printf("Finished\n");
         printf("Reading Search Point Labels...");
         search_points_labels = new int[N];
-        std::vector<std::vector<int>> cluster_points_mapping;
+        cluster_points_mapping.clear() ;
         read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
         for (int n = 0; n < N; n++) {
             int label = search_points_labels[n];
@@ -377,7 +379,32 @@ public:
         CUDA_SYNC_CHECK();
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
-        
+
+        uint8_t *d_hit_record = bvh_dict[0]->getPrimitiveHit() ;
+
+        int points_in_codebook_entry_total_size = 0 ;
+        for (int c = 0; c < coarse_grained_cluster_num; c ++)
+            for (int d = 0; d < D / M; d ++)
+                for (int e = 0; e < PQ_entry; e ++)
+                    points_in_codebook_entry_total_size += sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
+
+        int *points_in_codebook_entry = new int [points_in_codebook_entry_total_size] ;
+        int *points_in_codebook_entry_size = new int [coarse_grained_cluster_num * (D / M) * PQ_entry] ;
+        int *points_in_codebook_entry_bias = new int [coarse_grained_cluster_num * (D / M) * PQ_entry] ;
+
+        int cur_size = 0 ;
+        for (int c = 0; c < coarse_grained_cluster_num; c ++)
+            for (int d = 0; d < (D / M); d ++)
+                for (int e = 0; e < PQ_entry; e ++) {
+                    points_in_codebook_entry_bias[c * (D / M) * PQ_entry + d * PQ_entry + e] = cur_size ;
+                    points_in_codebook_entry_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
+                    for (int p = 0; p < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; p ++)
+                        points_in_codebook_entry[cur_size + p] = inversed_codebook_map_localid[c][d][e][p] ;
+                    cur_size += sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
+                }
+
+        getHitResult (query_selected_clusters, points_in_codebook_entry, points_in_codebook_entry_size, points_in_codebook_entry_bias, cur_size, d_hit_record, Q, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
+
 //         gettimeofday(&st, NULL);
 //         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
 //         int r1_100 = 0;

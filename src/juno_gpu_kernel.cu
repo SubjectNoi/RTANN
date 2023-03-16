@@ -390,4 +390,88 @@ void getHitResult(unsigned int* _hit_record,
     std::cout << "GPU Hit Res: " << ms << std::endl;
 }
 
+// query_selected_clusters: query * nlists
+// points_in_codebook_entry: C * (D / M) * PQ_entry * max_numOfPointsInBit
+// d_hit_record: query * nlists * 64 * 32
+__global__ void gpuGetHitResult (int *query_selected_clusters, 
+                                int *points_in_codebook_entry, 
+                                int *points_in_codebook_entry_size, 
+                                int *points_in_codebook_entry_bias, 
+                                uint8_t *hit_record, 
+                                uint8_t *hit_res, 
+                                const int nlists, const int D, const int M, const int PQ_entry) {
+    int bit = threadIdx.x ;
+    int tid = blockIdx.x * blockDim.x;
+    int query = tid / (nlists * (D / M)) ;
+    int nlist = tid / (D / M) % nlists;
+    int dim = tid % (D / M);
+    if (bit < PQ_entry && query < 10000 && nlist < nlists && dim < (D / M)) {
+        __shared__ int cluster ;
+        cluster = query_selected_clusters[query * nlists + nlist] ;
+        __shared__ int size[256] ; // PQ_entry
+        __shared__ int bias[256] ;
+        __shared__ uint8_t record[256] ;
+        for (int i = 0; i < PQ_entry; i ++) {
+            size[i] = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + i] ;
+            bias[i] = points_in_codebook_entry_bias[cluster * (D / M) * PQ_entry + dim * PQ_entry + i] ;
+            record[i] = hit_record[query * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + dim * PQ_entry + i] ;
+        }
+        __syncthreads() ;
+        // int size = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
+        if (record[bit] > 0) {
+            for (int i = 0; i < size[bit]; i ++) {
+                int point = points_in_codebook_entry[bias[bit] + i] ;
+                hit_res[query * nlists * 3000 + nlist * 3000 + point] += record[bit] ;
+            }
+        }
+        __syncthreads() ;
+    }
+}
+
+// query_selected_clusters: query * nlists
+// points_in_codebook_entry: points_in_codebook_entry_total_size
+// points_in_codebook_entry_size: C * (D / M) * PQ_entry
+// points_in_codebook_entry_bias: C * (D / M) * PQ_entry
+// d_hit_record: query * nlists * (D / M) * PQ_entry
+void getHitResult (int *query_selected_clusters, 
+                    int *points_in_codebook_entry, 
+                    int *points_in_codebook_entry_size, 
+                    int *points_in_codebook_entry_bias, 
+                    int points_in_codebook_entry_total_size, 
+                    uint8_t *d_hit_record, 
+                    int Q, int nlists, int C, int D, int M, int PQ_entry) {
+    int *d_query_selected_clusters ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_query_selected_clusters), sizeof (int) * Q * 8));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_query_selected_clusters), query_selected_clusters, sizeof (int) * Q * 8, cudaMemcpyHostToDevice));
+
+    int *d_points_in_codebook_entry ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry), sizeof (int) * points_in_codebook_entry_total_size));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry), points_in_codebook_entry, sizeof (int) * points_in_codebook_entry_total_size, cudaMemcpyHostToDevice));
+
+    int *d_points_in_codebook_entry_size ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_size), sizeof (int) * C * (D / M) * PQ_entry));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_size), points_in_codebook_entry_size, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+
+    int *d_points_in_codebook_entry_bias ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_bias), sizeof (int) * C * (D / M) * PQ_entry));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_bias), points_in_codebook_entry_bias, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+
+    uint8_t *d_hit_res ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_hit_res), sizeof (uint8_t) * Q * 8 * 3000));
+
+    cudaEvent_t st, ed;
+    cudaEventCreate(&st);
+    cudaEventCreate(&ed);
+    cudaEventRecord(st);
+    int numOfThreads = Q * nlists * (D / M) * PQ_entry ;
+    dim3 block (numOfThreads / PQ_entry, 1), thread (PQ_entry, 1);
+    gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, nlists, D, M, PQ_entry);
+    CUDA_SYNC_CHECK();
+    cudaEventRecord(ed);
+    cudaEventSynchronize(ed);
+    float ms;
+    cudaEventElapsedTime(&ms, st, ed);
+    std::cout << "GPU Hit Res: " << ms << std::endl;
+}
+
 }; // namespace juno
