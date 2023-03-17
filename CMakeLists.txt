@@ -10,11 +10,12 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_86,code=sm_86;)
 include_directories($ENV{OptiX_INSTALL_DIR}/include)
 include_directories($ENV{OptiX_INSTALL_DIR}/SDK)
 include_directories($ENV{OptiX_INSTALL_DIR}/SDK/support)
-include_directories($ENV{OptiX_INSTALL_DIR}/SDKBuild)
+include_directories($ENV{OptiX_INSTALL_DIR}/SDK/build)
 include_directories($ENV{JUNO_ROOT}/include)
 include_directories($ENV{OpenBLAS_INSTALL_DIR})
 include_directories(/usr/local/cuda/samples/common/inc/)
 include_directories(/usr/local/cuda/include/lib64/)
+include_directories(/usr/local/cuda/include/) # thrust
 link_directories(/usr/lib /usr/local/lib /usr/local/cuda/lib64)
 link_directories($ENV{OpenBLAS_INSTALL_DIR})
 
