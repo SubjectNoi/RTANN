@@ -22,6 +22,7 @@ struct MissData {
 
 struct HitGroupData {
     unsigned int* hit_record;
+    unsigned int* ray_info;
 };
 
 template <typename T>
@@ -88,7 +89,9 @@ public:
                                     int _C, int _D, int _M,
                                     T** _stat,
                                     T _r,
-                                    METRIC _metric) 
+                                    METRIC _metric,
+                                    float alpha,
+                                    float beta) 
     {
         struct timeval st, ed;
         float3* centers;
@@ -104,12 +107,14 @@ public:
                 // float _radius = _r * factors[d];
                 float _radius = _r * 1.0;
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
-                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
-                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
-                    float factor = 0.01 * std::min(x, y);
+                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 20.0;
+                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 20.0;
+                    // float factor = 1.0 * std::min(std::abs(x), std::abs(y));
+                    float factor = alpha * std::min(std::abs(x), std::abs(y));
                     centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
                     // if (c == 432 && d == 0) printf("Prim %d:(%.6f, %.6f, %.6f)\n", prim_idx, x, y, 1.0 * (c * 128 + 2 * d + 1));
-                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
+                    // radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
+                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(beta+factor);
                     prim_idx++;
                 }
             }
@@ -421,6 +426,11 @@ public:
 
         params.handle = gas_handle;
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, sizeof(Params), cudaMemcpyHostToDevice));
+    }
+
+    void freeResources() {
+        OPTIX_CHECK( optixPipelineDestroy( pipeline ) );
+        OPTIX_CHECK( optixDeviceContextDestroy( context ) );
     }
 
     void setRayOrigin(float3* ray_origin, int size) {

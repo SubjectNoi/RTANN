@@ -15,7 +15,7 @@ extern "C" __global__ void __raygen__rg() {
     // printf("Getting ray origin of %d\n", idx.x);
     const float3 origin = rgData->ray_origin[idx.x];
     // const float3 origin = make_float3(1.0, 2.0, 3.0);
-    // printf("Ray:%d Generated, Origin:(%f,%f,%f)\n", idx.x, origin.x, origin.y, origin.z);
+    // if (idx.x == 0) printf("Ray:%d Generated, Origin:(%f,%f,%f)\n", idx.x, origin.x, origin.y, origin.z);
     optixTrace(params.handle, 
                origin, 
                direction, 

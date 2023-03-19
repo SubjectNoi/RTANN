@@ -11,15 +11,28 @@ int main(int argc, char** argv) {
     // query.generateQueryBatch(10000);
     // server.serveQuery(query.query_queue[0], 8);
 
-    std::string path = std::getenv("JUNO_ROOT") + std::string("/data/SIFT1M/");
-    juno::juno_core<float> server(path, SIFT1M);
-    juno::juno_query_total<float> query(path, SIFT1M);
-    server.buildJunoIndexWhole();
+    std::string path = std::getenv("JUNO_ROOT") + std::string("/data/DEEP1M/");
+    juno::juno_core<float> server(path, DEEP1M);
+    juno::juno_query_total<float> query(path, DEEP1M);
     query.generateQueryBatch(10000);
     int nlists;
-    while (std::cin >> nlists) {
-        if (nlists < 0) break;
-        server.serveQueryWhole(query.query_queue[0], nlists);
+    float a, b;
+    // for (int nlists = 1; nlists < 2; nlists=nlists*2) {
+    //     for (int al = 100; al <= 100; al++) {
+    //         for (int be = 5; be <= 100; be+=5) {
+    //             float alpha = (1.0 * al) / 100.0;
+    //             float beta = (1.0 * be) / 100.0;
+    //             server.buildJunoIndexWhole(alpha, beta);
+    //             server.serveQueryWhole(query.query_queue[0], nlists);
+
+    //         }
+    //     }
+    // }
+                //Deep1M: 32 0.13 0.6
+    while(std::cin >> nlists >> a >> b) {
+                if (nlists == 114514) break;
+                server.buildJunoIndexWhole(a, b);
+                server.serveQueryWhole(query.query_queue[0], nlists);
     }
 
 

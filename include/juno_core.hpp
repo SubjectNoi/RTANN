@@ -58,7 +58,7 @@ public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
               int _coarse_grained_cluster_num=1000, 
-              T _radius=0.5,
+              T _radius=0.3,
               bool _use_pq=true, 
               RT_MODE _rt_mode=QUERY_AS_RAY
              ) 
@@ -120,7 +120,7 @@ public:
             }
         }
         printf("Finished\n");
-
+        search_points = NULL;
         printf("Reading Cluster Centroids...");
         cluster_centroids_vec.clear();
         cluster_centroids = new T* [coarse_grained_cluster_num];
@@ -255,11 +255,11 @@ public:
         }
     }
 
-    void buildJunoIndexWhole() {
+    void buildJunoIndexWhole(float al, float be) {
         OPTIX_CHECK(optixInit());
         std::remove("/var/tmp/OptixCache_zhliu/optix7cache.db");
         bvh_dict[0] = new juno_rt<T>(Q);
-        bvh_dict[0]->constructCompleteBVHwithPQ(codebook_entry, coarse_grained_cluster_num, PQ_entry, D, M, stat, radius, metric);
+        bvh_dict[0]->constructCompleteBVHwithPQ(codebook_entry, coarse_grained_cluster_num, PQ_entry, D, M, stat, radius, metric, al, be);
     }
 
     void serveQueryWhole(juno_query_batch<T>* _query_batch, int nlists) {
@@ -349,8 +349,8 @@ public:
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
                 for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
-                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
+                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 20.0;
+                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 20.0;
                     ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
                     index_bias++;
                 }
@@ -358,7 +358,15 @@ public:
         }
         gettimeofday(&ed, NULL);
         elapsed("Setting Ray Origin[CPU]", st, ed);
-
+        // std::sort(ray_origin_whole, ray_origin_whole + index_bias, [](float3 a, float3 b){
+        //     if (abs(a.z - b.z) > 1e-3) return a.z < b.z;
+        //     else {
+        //         if (abs(a.x - b.x) > 1e-3) return a.x < b.x;
+        //         else {
+        //             if (abs(a.y - b.y) > 1e-3) return a.y < b.y;
+        //         }
+        //     }
+        // });
         gettimeofday(&st, NULL);
         bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
         gettimeofday(&ed, NULL);
@@ -371,6 +379,8 @@ public:
         CUDA_SYNC_CHECK();
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
+        float us = 1000000.0 * (ed.tv_sec - st.tv_sec) + 1.0 * (ed.tv_usec - st.tv_usec);
+
         
         gettimeofday(&st, NULL);
         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
@@ -444,6 +454,10 @@ public:
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
+        std::ofstream fres("result", std::fstream::out | std::fstream::app);
+        fres << (query_size * 1000.0) / (us / 1000.0) << ", " << (1.0 * r1_100) / (1.0 * query_size) << ", " << (1.0 * r100_1000) / (1.0 * query_size) << "\n";
+        fres.close();
+        bvh_dict[0]->freeResources();
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {
