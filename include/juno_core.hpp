@@ -307,6 +307,7 @@ public:
         }
         // Can be optimized use OpenMP/CUDA
         // #pragma omp parallel for
+        int max_cluster_size = 0 ;
         for (int q = 0; q < query_size; q++) {
             int cnt = 0;
             std::vector <T> query_vec;
@@ -327,9 +328,11 @@ public:
                 // Push query q into the query_list of cluster c
                 cluster_query_mapping[cluster_centroids_vec[nl].first].push_back(q);
                 cnt += cluster_size[cluster_centroids_vec[nl].first];
+                max_cluster_size = std::max(max_cluster_size, cluster_size[cluster_centroids_vec[nl].first]);
             }
             total_candidate[q] = cnt;
         }
+        dbg (max_cluster_size) ;
         gettimeofday(&ed, NULL);
         elapsed("Filtering[CPU]", st, ed);
 
@@ -337,27 +340,40 @@ public:
         gettimeofday(&st, NULL);
         float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
         int index_bias = 0, accum = 0;
+
         // Ray Layout: 10000 * nlists * D / 2 rays
         // [............Cluster 1 Ray.............][............Cluster 2 Ray.............]........
         // |                                       \
         // [Dim 00 Ray][Dim 01 Ray]......[Dim 63 Ray]
         // |           \                 |           \
         // [q0,q1,...,qc]                [q0,q1,...,qc]
-        for (int c = 0; c < coarse_grained_cluster_num; c++) {
-            int query_of_cluster_c = cluster_query_mapping[c].size();
-            cluster_bias[c] = accum;
-            cluster_query_size[c] = cluster_query_mapping[c].size();
-            accum += query_of_cluster_c;
-            float bias = 1.0 * c;
-            for (int d = 0; d < D / M; d++) {
-                for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
-                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
-                    ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
-                    index_bias++;
+        // for (int c = 0; c < coarse_grained_cluster_num; c++) {
+        //     int query_of_cluster_c = cluster_query_mapping[c].size();
+        //     cluster_bias[c] = accum;
+        //     cluster_query_size[c] = cluster_query_mapping[c].size();
+        //     accum += query_of_cluster_c;
+        //     float bias = 1.0 * c;
+        //     for (int d = 0; d < D / M; d++) {
+        //         for (int q = 0; q < query_of_cluster_c; q++) {
+        //             float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
+        //             float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
+        //             ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
+        //             index_bias++;
+        //         }
+        //     }
+        // }
+
+        // Ray Layout: query, nlists, dim
+        for (int q = 0; q < query_size; q ++)
+            for (int nlist = 0; nlist < nlists; nlist ++) 
+                for (int d = 0; d < D / M; d ++) {
+                    int c = query_cluster_mapping[q][nlist].first;
+                    float x = (1.0 * query_data[q][2 * d]) / 100.0;
+                    float y = (1.0 * query_data[q][2 * d + 1]) / 100.0;
+                    ray_origin_whole[q * nlists * (D / M) + nlist * (D / M) + d] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
+                    // index_bias++;
                 }
-            }
-        }
+
         gettimeofday(&ed, NULL);
         elapsed("Setting Ray Origin[CPU]", st, ed);
 
@@ -365,22 +381,24 @@ public:
         for (int i = 0; i < query_size; i ++)
             for (int j = 0; j < nlists; j ++)
                 query_selected_clusters[i * nlists + j] = query_cluster_mapping[i][j].first;
-        bvh_dict[0] -> setQuerySelectedClusters(query_selected_clusters, query_size * nlists);
+        // bvh_dict[0] -> setQuerySelectedClusters(query_selected_clusters, query_size * nlists);
 
         gettimeofday(&st, NULL);
-        bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
+        // bvh_dict[0]->setRayOrigin(ray_origin_whole, index_bias);
+        bvh_dict[0]->setRayOrigin(ray_origin_whole, query_size * nlists * (D / M));
         gettimeofday(&ed, NULL);
         elapsed("Copying Ray Origin H->D[GPU]", st, ed);
         gettimeofday(&st, NULL);
         auto pipeline = bvh_dict[0]->getOptixPipeline();
         auto d_param = bvh_dict[0]->getDparams();
         auto sbt = bvh_dict[0]->getSBT();   
-        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, index_bias, 1, 1));
+        // OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, index_bias, 1, 1));
+        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), sbt, query_size, nlists, (D / M)));
         CUDA_SYNC_CHECK();
         gettimeofday(&ed, NULL);
         elapsed("Ray Tracing", st, ed);
 
-        uint8_t *d_hit_record = bvh_dict[0]->getPrimitiveHit() ;
+        float *d_hit_record = bvh_dict[0]->getPrimitiveHit() ;
 
         int points_in_codebook_entry_total_size = 0 ;
         for (int c = 0; c < coarse_grained_cluster_num; c ++)
@@ -402,7 +420,7 @@ public:
                         points_in_codebook_entry[cur_size + p] = inversed_codebook_map_localid[c][d][e][p] ;
                     cur_size += sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
                 }
-
+        dbg (nlists) ;
         getHitResult (query_selected_clusters, points_in_codebook_entry, points_in_codebook_entry_size, points_in_codebook_entry_bias, cur_size, d_hit_record, Q, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
 
 //         gettimeofday(&st, NULL);

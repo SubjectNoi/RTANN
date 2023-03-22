@@ -23,7 +23,7 @@ void getHitResult (int *query_selected_clusters,
                     int *points_in_codebook_entry_size, 
                     int *points_in_codebook_entry_bias, 
                     int points_in_codebook_entry_total_size, 
-                    uint8_t *d_hit_record, 
+                    float *d_hit_record, 
                     int Q, int nlists, int C, int D, int M, int PQ_entry) ;
 }; // namespace juno
 

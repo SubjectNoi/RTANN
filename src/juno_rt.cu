@@ -41,21 +41,21 @@ extern "C" __global__ void __anyhit__ah() {
     // const uint3 dim = optixGetLaunchDimensions();
     // const float3 ray_orig = optixGetWorldRayOrigin();
     // const float3 ray_dir = optixGetWorldRayDirection();
-    // const float t = optixGetRayTmax();
+    const float t = optixGetRayTmax();
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
-    int query = idx.x % 10000 ; // fake, TODO: alignment
+    int query = idx.x, index = idx.y, dim = idx.z ;
     int cluster = prim_idx / (64 * 32) ;
-    int dim = prim_idx % (64 * 32) / 32;
+    // int dim = prim_idx % (64 * 32) / 32;
     int bit = prim_idx % 32;
-    int index = 0 ;
-    for (int i = 0; i < 8; i ++) { // nlists
-        if (htData -> query_selected_clusters[query * 8 + i] == cluster) {
-            index = i ;
-            break ;
-        }
-    }
-    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] ++ ;
+    // int index = 0 ;
+    // for (int i = 0; i < 8; i ++) { // nlists
+    //     if (htData -> query_selected_clusters[query * 8 + i] == cluster) {
+    //         index = i ;
+    //         break ;
+    //     }
+    // }
+    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += t * t ;
     // unsigned int one = 1;
     // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
     // htData->prim_hit[prim_idx>>1] = 114514;
