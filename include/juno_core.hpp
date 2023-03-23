@@ -74,7 +74,8 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
-                Q = 10000;
+                // Q = 10000; 
+                Q = 1; // TEST!!!
                 PQ_entry = 32;
                 metric = METRIC_L2;
                 break;
@@ -323,6 +324,7 @@ public:
 
             // Select nlists cluster
             for (int nl = 0; nl < nlists; nl++) {
+                printf ("selected cluster: %d\n", cluster_centroids_vec[nl].first) ;
                 // Record a pair, stands for: <the cluster c this query q use, the position this query q falls in the cluster c>
                 query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
                 // Push query q into the query_list of cluster c
@@ -370,6 +372,7 @@ public:
                     int c = query_cluster_mapping[q][nlist].first;
                     float x = (1.0 * query_data[q][2 * d]) / 100.0;
                     float y = (1.0 * query_data[q][2 * d + 1]) / 100.0;
+                    // printf ("c: %d x: %f y: %f z: %f\n", c, x, y, 1.0 * (c * 128 + 2 * d)) ;
                     ray_origin_whole[q * nlists * (D / M) + nlist * (D / M) + d] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
                     // index_bias++;
                 }

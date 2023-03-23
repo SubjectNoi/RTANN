@@ -112,14 +112,20 @@ public:
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
                     float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
                     float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
-                    float factor = 0.01 * std::min(x, y);
+                    // float factor = 0.01 * std::min(x, y);
+                    // if (c == 432) {
+                    //     printf("Prim %d, c %d, d %d, bit %d: (%.6f, %.6f, %.6f)\n", prim_idx, c, d, n, x, y, 1.0 * (c * 128 + 2 * d + 1));
+                    // }
                     centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
                     // if (c == 432 && d == 0) printf("Prim %d:(%.6f, %.6f, %.6f)\n", prim_idx, x, y, 1.0 * (c * 128 + 2 * d + 1));
-                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
+                    // radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
+                    radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(_radius);
                     prim_idx++;
                 }
             }
         }
+
+        dbg (hitable_num) ;
 
         CUdeviceptr d_centers;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_centers), hitable_num * sizeof(float3)));
@@ -415,7 +421,8 @@ public:
         // int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
         // HARDCODE, query * nlists * dim * bit
-        int d_hit_record_size = 10000 * 32 * 64 * 32 ;
+        // int d_hit_record_size = 10000 * 32 * 64 * 32 ;
+        int d_hit_record_size = 1 * 8 * 64 * 32 ;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(uint8_t) * d_hit_record_size)) ;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(float) * d_hit_record_size)) ;
         // int d_query_selected_clusters_size = 10000 * 8 ; // query * nlists

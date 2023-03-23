@@ -280,13 +280,13 @@ __global__ void gpuGetHitResult (int *query_selected_clusters,
                                 float *hit_record, 
                                 float *hit_res, 
                                 // thrust::pair<uint8_t, int> *hit_res, 
-                                const int nlists, const int D, const int M, const int PQ_entry) {
+                                const int Q, const int nlists, const int D, const int M, const int PQ_entry) {
     int bit = threadIdx.x ;
     int tid = blockIdx.x * blockDim.x;
     int query = tid / (nlists * (D / M)) ;
     int nlist = tid / (D / M) % nlists;
     int dim = tid % (D / M);
-    if (bit < PQ_entry && query < 10000 && nlist < nlists && dim < (D / M)) {
+    if (bit < PQ_entry && query < Q && nlist < nlists && dim < (D / M)) {
         __shared__ int cluster ;
         cluster = query_selected_clusters[query * nlists + nlist] ;
         __shared__ int size[256] ; // PQ_entry
@@ -297,13 +297,9 @@ __global__ void gpuGetHitResult (int *query_selected_clusters,
         record[bit] = hit_record[query * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
         __syncthreads() ;
         // int size = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
-        if (record[bit] > 0) {
-            for (int i = 0; i < size[bit]; i ++) {
-                int point = points_in_codebook_entry[bias[bit] + i] ;
-                hit_res[query * nlists * 3000 + nlist * 3000 + point] += record[bit] ;
-                // hit_res[query * nlists * 3000 + nlist * 3000 + point].second = query * nlists * 3000 + nlist * 3000 + point ;
-                // hit_res[query * nlists * 3000 + nlist * 3000 + point].first += record[bit] ;
-            }
+        for (int i = 0; i < size[bit]; i ++) {
+            int point = points_in_codebook_entry[bias[bit] + i] ;
+            hit_res[query * nlists * 3000 + nlist * 3000 + point] += record[bit] ;
         }
         __syncthreads() ;
     }
@@ -390,7 +386,8 @@ void getHitResult (int *query_selected_clusters,
     cudaEventRecord(st);
     int numOfThreads = Q * nlists * (D / M) * PQ_entry ;
     dim3 block (numOfThreads / PQ_entry, 1), thread (PQ_entry, 1);
-    gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, nlists, D, M, PQ_entry);
+    printf ("Q: %d nlists: %d D: %d M: %d PQ_entry: %d\n", Q, nlists, D, M, PQ_entry);
+    gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, Q, nlists, D, M, PQ_entry);
     CUDA_SYNC_CHECK();
     cudaEventRecord(ed);
     cudaEventSynchronize(ed);

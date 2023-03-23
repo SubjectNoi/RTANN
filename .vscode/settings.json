@@ -68,7 +68,8 @@
         "stack": "cpp",
         "unordered_set": "cpp",
         "semaphore": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "pipeline": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

@@ -19,17 +19,17 @@ from cuml import KMeans
 d = 128
 n = 1000000
 nlists = int(sys.argv[2])
-q = 100
+q = 1
 bias = 0
 thres = float(sys.argv[1])
 cluster_num = int(sys.argv[3])
 
-random_indices = []
-while len(random_indices) < q:
-    index = np.random.randint(0, 10000, 1)[0]
-    if index not in random_indices:
-        random_indices.append(index)
-# random_indices = [0]
+# random_indices = []
+# while len(random_indices) < q:
+#     index = np.random.randint(0, 10000, 1)[0]
+#     if index not in random_indices:
+#         random_indices.append(index)
+random_indices = [0]
 
 def l2(x, y):
     res = 0.0
@@ -261,8 +261,9 @@ for qid in range(len(xq)):
     
     occurance = {}
     point_count = {}
-    # print(sel_key)
+    print(sel_key)
     for skey in sel_key:
+        # print ("cluster " + str (skey) + ": ")
         current_codebook = codebook[skey]
         for sid in range(len(query_seg)): # assert len(query_seg) == pq_d
             seg_candidate = []
@@ -274,7 +275,6 @@ for qid in range(len(xq)):
             query_codebook_entry_dis = dict()
             selected_codebook_points_num = 0
             for i in range(len(codebook_line_with_id)):
-                # print (codebook_line_with_id[i][1])
                 codebook_point = codebook_line_with_id[i][1]
                 radius = thres
                 # radius = thres + (((codebook_point[0] / 100.0) ** 2 + (codebook_point[1] / 100.0) ** 2) ** 0.5) * 0.05
@@ -282,6 +282,8 @@ for qid in range(len(xq)):
                 weight = 0
                 if tmp_dist < radius * 100.0:
                     # selected_codebook_points_num += 1
+                    # print ("hit codebook entry " + str (codebook_line_with_id[i][0]))
+                    print ("cluster " + str (skey) + ", dim " + str (sid) + ", bit " + str (codebook_line_with_id[i][0]))
                     weight = -(tmp_dist ** 2)
                 else:
                     # weight = -(thres * 100.0) ** 2

@@ -13,7 +13,8 @@ extern "C" __global__ void __raygen__rg() {
     const float3 direction = make_float3(0.0f, 0.0f, 1.0f);
     const RayGenData* rgData = (RayGenData*)optixGetSbtDataPointer();
     // printf("Getting ray origin of %d\n", idx.x);
-    const float3 origin = rgData->ray_origin[idx.x];
+    int ray_idx = idx.x * dim.y * dim.z + idx.y * dim.z + idx.z ;
+    const float3 origin = rgData->ray_origin[ray_idx];
     // const float3 origin = make_float3(1.0, 2.0, 3.0);
     // printf("Ray:%d Generated, Origin:(%f,%f,%f)\n", idx.x, origin.x, origin.y, origin.z);
     optixTrace(params.handle, 
@@ -22,7 +23,7 @@ extern "C" __global__ void __raygen__rg() {
                0.0f, 
                1.0f, 
                0.0f, 
-               OptixVisibilityMask(1), 
+               OptixVisibilityMask(255), 
                OPTIX_RAY_FLAG_NONE, 
                0, 
                0, 
@@ -55,7 +56,10 @@ extern "C" __global__ void __anyhit__ah() {
     //         break ;
     //     }
     // }
-    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += t * t ;
+    // printf ("query:%d index:%d cluster:%d dim:%d bit:%d prim_idx: %d\n", query, index, cluster, dim, bit, prim_idx) ;
+    // if (cluster == 432 && dim == 0)
+    //     printf ("cluster %d, dim %d, bit %d\n", cluster, dim, bit) ;
+    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += 1 - t * t ;
     // unsigned int one = 1;
     // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
     // htData->prim_hit[prim_idx>>1] = 114514;
