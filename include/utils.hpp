@@ -39,7 +39,10 @@
 #define SCALE 0.75
 #define HIT_REC_PER_C 200
 #define QUERY_BATCH_MAX 10000
-#define VERBOSE 0
+#define MAX_ENTRY 512
+#define CURRENT_ENTRY 512
+#define CELL_NUM (MAX_ENTRY / 32)
+// #define VERBOSE 1
 
 enum RT_MODE {
     QUERY_AS_RAY = 0,

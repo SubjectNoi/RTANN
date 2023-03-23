@@ -42,7 +42,7 @@ private:
     T****       codebook_entry;         // [C][D/M][E][M]
     int***      codebook_labels;        // [C][D/M][]
     std::vector<int>*** inversed_codebook_map; // [C][D/M][32][]
-    std::vector<int>*** inversed_codebook_map_localid;
+    // std::vector<int>*** inversed_codebook_map_localid;
     uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
     
@@ -77,7 +77,11 @@ public:
                 metric = METRIC_L2;
                 break;
             case SIFT1B:
-
+                N = 100000000;
+                D = 128;
+                Q = 100;
+                PQ_entry = 512;
+                metric = METRIC_L2;
                 break;
             case TTI1M:
 
@@ -106,20 +110,20 @@ public:
         use_pq = _use_pq;
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
-        hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
+        hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M) * (MAX_ENTRY / 32)];
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * Q * N));
         sub_cluster_size = new int[coarse_grained_cluster_num * (D / M) * PQ_entry];
-        printf("Reading Search Points...");
-        search_points = new T* [N];
-        search_points_flatten = new T[N * D];
-        for (int i = 0; i < N; i++) search_points[i] = new T[D];
-        read_search_points<T>((dataset_dir + "search_points").c_str(), search_points, N, D);
-        for (int n = 0; n < N; n++) {
-            for (int d = 0; d < D; d++) {
-                search_points_flatten[n * D + d] = search_points[n][d];
-            }
-        }
-        printf("Finished\n");
+        // printf("Reading Search Points...");
+        // search_points = new T* [N];
+        // search_points_flatten = new T[N * D];
+        // for (int i = 0; i < N; i++) search_points[i] = new T[D];
+        // read_search_points<T>((dataset_dir + "search_points").c_str(), search_points, N, D);
+        // for (int n = 0; n < N; n++) {
+        //     for (int d = 0; d < D; d++) {
+        //         search_points_flatten[n * D + d] = search_points[n][d];
+        //     }
+        // }
+        // printf("Finished\n");
         search_points = NULL;
         printf("Reading Cluster Centroids...");
         cluster_centroids_vec.clear();
@@ -177,19 +181,19 @@ public:
         }
         printf("Finished\n");
 
-        stat = new T*[D];
-        for (int i = 0; i < D; i++) {
-            stat[i] = new T[4];    // Min, Max, Mean, Std
-            std::vector <T> tmp;
-            tmp.clear();
-            for (int j = 0; j < N; j++) {
-                tmp.push_back(search_points[j][i]);
-            }
-            stat[i][0] = *std::min_element(tmp.begin(), tmp.end());
-            stat[i][1] = *std::max_element(tmp.begin(), tmp.end());
-            stat[i][2] = std::accumulate(tmp.begin(), tmp.end(), 0.0) / (1.0 * N);
-            stat[i][3] = std::sqrt(std::inner_product(tmp.begin(), tmp.end(), tmp.begin(), 0.0) / (1.0 * N) - stat[i][2] * stat[i][2]);
-        }
+        // stat = new T*[D];
+        // for (int i = 0; i < D; i++) {
+        //     stat[i] = new T[4];    // Min, Max, Mean, Std
+        //     std::vector <T> tmp;
+        //     tmp.clear();
+        //     for (int j = 0; j < N; j++) {
+        //         tmp.push_back(search_points[j][i]);
+        //     }
+        //     stat[i][0] = *std::min_element(tmp.begin(), tmp.end());
+        //     stat[i][1] = *std::max_element(tmp.begin(), tmp.end());
+        //     stat[i][2] = std::accumulate(tmp.begin(), tmp.end(), 0.0) / (1.0 * N);
+        //     stat[i][3] = std::sqrt(std::inner_product(tmp.begin(), tmp.end(), tmp.begin(), 0.0) / (1.0 * N) - stat[i][2] * stat[i][2]);
+        // }
         if (use_pq == true) {
             printf("Reading Codebook Entry...");
             codebook_entry = new T***[coarse_grained_cluster_num];
@@ -213,25 +217,33 @@ public:
             read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
             printf("Finished\n");
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
-            inversed_codebook_map_localid = new std::vector<int>** [coarse_grained_cluster_num];
+            // inversed_codebook_map_localid = new std::vector<int>** [coarse_grained_cluster_num];
+            int tmp_cnt = 0;
+            // omp_set_num_threads(48);
+            // #pragma omp parallel for
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
                 inversed_codebook_map[c] = new std::vector<int>* [D / M];
-                inversed_codebook_map_localid[c] = new std::vector<int>* [D / M];
+                // inversed_codebook_map_localid[c] = new std::vector<int>* [D / M];
                 for (int d = 0; d < D / M; d++) {
-                    inversed_codebook_map[c][d] = new std::vector<int> [32];
-                    inversed_codebook_map_localid[c][d] = new std::vector<int> [32];
+                    inversed_codebook_map[c][d] = new std::vector<int> [PQ_entry];
+                    // inversed_codebook_map_localid[c][d] = new std::vector<int> [PQ_entry];
                     for (int e = 0; e < PQ_entry; e++) {
                         inversed_codebook_map[c][d][e].clear();
-                        inversed_codebook_map_localid[c][d][e].clear();
+                        // inversed_codebook_map_localid[c][d][e].clear();
                         for (int n = 0; n < cluster_size[c]; n++) {
                             if (codebook_labels[c][d][n] == e) {
                                 inversed_codebook_map[c][d][e].push_back(cluster_points_mapping[c][n]);
-                                inversed_codebook_map_localid[c][d][e].push_back(n);
+                                // inversed_codebook_map_localid[c][d][e].push_back(n);
                             }
                         }
-                        sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = inversed_codebook_map[c][d][e].size();
+                        // sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = inversed_codebook_map[c][d][e].size();
                     }
                 }
+                // #pragma omp critical 
+                // {
+                    tmp_cnt ++;
+                    printf("%d\n", tmp_cnt);
+                // }
             }
         }
         dbg("Finish Reading Dataset and Cluster Info.");
@@ -349,8 +361,8 @@ public:
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
                 for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 20.0;
-                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 20.0;
+                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
+                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
                     ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
                     index_bias++;
                 }
@@ -396,34 +408,41 @@ public:
 #if VERBOSE == 1
                 printf("Query: %d, Cluster: %d, Bias: %d\n", q, tmp_cluster, query_in_cluster_id);
 #endif
-                int base_addr = cluster_bias[tmp_cluster] * D / M;
-                int stride = cluster_query_mapping[tmp_cluster].size();
+                int base_addr = cluster_bias[tmp_cluster] * (D / M) * (MAX_ENTRY / 32);
+                int stride = cluster_query_mapping[tmp_cluster].size() * (MAX_ENTRY / 32);
                 std::unordered_map <int, int> point_counter_mapping;
                 unsigned int one = 1, zero = 0;
-                for (int d = 0; d < D / M; d++) {
-                    unsigned int hit_res = hit_record[base_addr + query_in_cluster_id + d * stride];
-                    for (unsigned int bit = 0; bit < 32; bit++) {
-                        if ((hit_res & (one << bit)) != zero) {
-                            // int cnt = 0;
-                            for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
-                                point_counter_mapping[item] ++;
-                                // cnt ++;
-                            }
+                for (int bit_id = 0; bit_id < (MAX_ENTRY / 32); bit_id++) {
+                    if (bit_id >= (CURRENT_ENTRY / 32)) break;
+                    for (int d = 0; d < D / M; d++) {
+                        unsigned int hit_res = hit_record[base_addr + query_in_cluster_id * (MAX_ENTRY / 32) + bit_id + d * stride];
+                        for (unsigned int bit = 0; bit < 32; bit++) {
+                            if ((hit_res & (one << bit)) != zero) {
+                                // int cnt = 0;
+                                for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
+                                    point_counter_mapping[item] ++;
+                                    // cnt ++;
+                                }
                             // std::cout << cnt << "/" << total_candidate[q] << std::endl;
+                            }
                         }
+#if VERBOSE == 1
+                        if (bit_id == 0) printf("%08x%c", hit_res, (d % 16 == 15) ? ' ' : ' ');
+#endif
                     }
 #if VERBOSE == 1
-                    printf("%08x%c", hit_res, (d % 16 == 15) ? '\n' : ' ');
+                    if (bit_id == 0) printf("\n");
 #endif
-                }
-#if VERBOSE == 1
-                printf("\n");
-#endif
-                for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
-                    sort_res.push_back(std::pair<int, int>(it->first, it->second));
+                    for (auto it = point_counter_mapping.begin(); it != point_counter_mapping.end(); it++) {
+                        sort_res.push_back(std::pair<int, int>(it->first, it->second));
+                    }
                 }
             }
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            // std::cout << sort_res.size() << std::endl;
+            // for (auto&& item : sort_res) {
+            //     std::cout << item.first << " " << item.second << std::endl;
+            // }
             int local_r1_100 = 0;
             for (int topk = 0; topk < 100; topk++) {
                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;

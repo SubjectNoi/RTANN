@@ -107,8 +107,8 @@ public:
                 // float _radius = _r * factors[d];
                 float _radius = _r * 1.0;
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
-                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 20.0;
-                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 20.0;
+                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
+                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
                     // float factor = 1.0 * std::min(std::abs(x), std::abs(y));
                     float factor = alpha * std::min(std::abs(x), std::abs(y));
                     centers[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
@@ -411,7 +411,7 @@ public:
         sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
         sbt.missRecordCount = 1;  
                 
-        int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
+        int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX * (MAX_ENTRY / 32);
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
         CUdeviceptr hitgroup_record;
         size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
@@ -438,7 +438,7 @@ public:
     }
 
     void getRayHitRecord(unsigned int* hit_record, int size) {
-        CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned int) * size, cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned int) * size * (MAX_ENTRY / 32), cudaMemcpyDeviceToHost));
     }
 
     // static void initRayOriginArray(int Q, int D, int M, int _nlists) {
