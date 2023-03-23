@@ -389,10 +389,10 @@ float* getHitResult (int *query_selected_clusters,
     cudaEventCreate(&ed);
     cudaEventRecord(st);
     int numOfThreads = Q * nlists * (D / M) * PQ_entry ;
-    printf("numOfThreads: %d\n", numOfThreads) ;
+    // printf("numOfThreads: %d\n", numOfThreads) ;
     dim3 block (numOfThreads / PQ_entry, 1), thread (PQ_entry, 1);
     printf ("Q: %d nlists: %d D: %d M: %d PQ_entry: %d\n", Q, nlists, D, M, PQ_entry);
-    printf ("%d %d %d\n", block.x, block.y, block.z) ;
+    // printf ("%d %d %d\n", block.x, block.y, block.z) ;
     gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, Q, nlists, D, M, PQ_entry);
     CUDA_SYNC_CHECK();
     cudaEventRecord(ed);

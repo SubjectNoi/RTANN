@@ -6,7 +6,7 @@
 
 struct Params {
     OptixTraversableHandle handle;
-    int magic;
+    int nlists, dim, bit ;
 };
 
 struct RayGenData {
@@ -445,6 +445,7 @@ public:
         sbt.hitgroupRecordCount = 1; 
 
         params.handle = gas_handle;
+        params.nlists = 32, params.dim = 64, params.bit = 32; // HARDCODE
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, sizeof(Params), cudaMemcpyHostToDevice));
     }
 

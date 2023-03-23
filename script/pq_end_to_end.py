@@ -19,17 +19,17 @@ from cuml import KMeans
 d = 128
 n = 1000000
 nlists = int(sys.argv[2])
-q = 1
+q = 1000
 bias = 0
 thres = float(sys.argv[1])
 cluster_num = int(sys.argv[3])
 
-# random_indices = []
-# while len(random_indices) < q:
-#     index = np.random.randint(0, 10000, 1)[0]
-#     if index not in random_indices:
-#         random_indices.append(index)
-random_indices = [0]
+random_indices = []
+while len(random_indices) < q:
+    index = np.random.randint(0, 10000, 1)[0]
+    if index not in random_indices:
+        random_indices.append(index)
+# random_indices = [0]
 
 def l2(x, y):
     res = 0.0
@@ -283,7 +283,7 @@ for qid in range(len(xq)):
                 if tmp_dist < radius * 100.0:
                     # selected_codebook_points_num += 1
                     # print ("hit codebook entry " + str (codebook_line_with_id[i][0]))
-                    print ("cluster " + str (skey) + ", dim " + str (sid) + ", bit " + str (codebook_line_with_id[i][0]) + ", dis " + str (tmp_dist ** 2))
+                    # print ("cluster " + str (skey) + ", dim " + str (sid) + ", bit " + str (codebook_line_with_id[i][0]) + ", dis " + str (tmp_dist ** 2))
                     weight = 100 ** 2 - tmp_dist ** 2
                 # else:
                 #     # weight = -(thres * 100.0) ** 2
@@ -328,8 +328,8 @@ for qid in range(len(xq)):
             #     occurance[sc] += 1
         # print()
 
-    for point in TREE[432][0][0]:
-        print ("cluster: 432 dim: 0 bit: 0 point: " + str (point[0]))
+    # for point in TREE[432][0][0]:
+    #     print ("cluster: 432 dim: 0 bit: 0 point: " + str (point[0]))
     
     print (len (occurance))
     occurance_list = []
@@ -338,11 +338,11 @@ for qid in range(len(xq)):
     occurance_list.sort(key=lambda x : x[1])
     occurance_list = occurance_list[::-1]
     idx = 0 
-    for l in occurance_list:
-        print (l[0], point_count[l[0]], occurance[l[0]])
-        idx += 1
-        if idx >= 10:
-            break
+    # for l in occurance_list:
+    #     print (l[0], point_count[l[0]], occurance[l[0]])
+    #     idx += 1
+    #     if idx >= 10:
+    #         break
     res_pq = [x[0] for x in occurance_list[0:1000]]
     recall_pq = 0
     for r in res_pq:

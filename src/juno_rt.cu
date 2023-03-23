@@ -46,9 +46,9 @@ extern "C" __global__ void __anyhit__ah() {
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
     int query = idx.x, index = idx.y, dim = idx.z ;
-    int cluster = prim_idx / (64 * 32) ;
+    int cluster = prim_idx / (params.dim * params.bit) ;
     // int dim = prim_idx % (64 * 32) / 32;
-    int bit = prim_idx % 32;
+    int bit = prim_idx % params.bit;
     // int index = 0 ;
     // for (int i = 0; i < 8; i ++) { // nlists
     //     if (htData -> query_selected_clusters[query * 8 + i] == cluster) {
@@ -59,7 +59,7 @@ extern "C" __global__ void __anyhit__ah() {
     // printf ("query:%d index:%d cluster:%d dim:%d bit:%d prim_idx: %d\n", query, index, cluster, dim, bit, prim_idx) ;
     // float dis = 0.5 * 0.5 - (1 - t) * (1 - t) ; // d^2 = r^2 - (1 - t)^2, HARDCODE
     float dis = 50 * 50 - (100.0 - 100.0 * t) * (100.0 - 100.0 * t) ;
-    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += 10000.0 - dis ; 
+    htData -> hit_record[query * (params.nlists * params.dim * params.bit) + index * (params.dim * params.bit) + dim * params.bit + bit] += 10000.0 - dis ; 
     // unsigned int one = 1;
     // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
     // htData->prim_hit[prim_idx>>1] = 114514;

@@ -435,33 +435,26 @@ public:
         //     }
         // }
 
-        for (int q = 0; q < 1; q ++) {
+        #pragma omp parallel for
+        for (int q = 0; q < query_size; q ++) {
             float *hit_res = new float [nlists * 3000] ;
             CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
-            std::pair<float, int> *hit_res_pair = new std::pair<float, int> [nlists * 3000] ;
+            std::vector <std::pair<int, int>> sort_res;
+            sort_res.clear();
             for (int i = 0; i < nlists * 3000; i ++) {
-                hit_res_pair[i].first = hit_res[i] ;
-                hit_res_pair[i].second = i ;
-                // printf ("%d: %f\n", i, hit_res[i]) ;
-            }
-            std::sort (hit_res_pair, hit_res_pair + nlists * 3000, std::greater<std::pair<float, int>>()) ;
-            for (int i = 0; i < 10; i ++) {
-                std::pair<float, int> p = hit_res_pair[i] ;
-                int nlist = p.second / 3000, idx = p.second % 3000 ;
+                int nlist = i / 3000, idx = i % 3000 ;
                 int cluster = query_selected_clusters[q * nlists + nlist] ;
                 int point = cluster_points_mapping[cluster][idx] ;
-                // printf ("nlist: %d idx: %d \n", nlist, idx) ;
-                // printf ("cluster: %d\n", cluster) ;
-                printf ("%d: %f\n", point, p.first) ;
+                sort_res.push_back (std::make_pair (point, hit_res[i]));
             }
         }
 
-//         gettimeofday(&st, NULL);
+        gettimeofday(&st, NULL);
 //         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
-//         int r1_100 = 0;
-//         int r100_1000 = 0;
-//         #pragma omp parallel for
-//         for (int q = 0; q < query_size; q++) {
+        int r1_100 = 0;
+        int r100_1000 = 0;
+        #pragma omp parallel for
+        for (int q = 0; q < query_size; q++) {
 //             std::vector <std::pair<int, int>> sort_res;
 //             sort_res.clear();
 //             for (int nl = 0; nl < nlists; nl++) {
@@ -497,37 +490,47 @@ public:
 //                     sort_res.push_back(std::pair<int, int>(it->first, it->second));
 //                 }
 //             }
-//             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
-//             int local_r1_100 = 0;
-//             for (int topk = 0; topk < 100; topk++) {
-//                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
-//                 if (sort_res[topk].first == ground_truth[q][0]) {
-//                     local_r1_100++;
-//                     break;
-//                 }
-//             }
-//             #pragma omp critical 
-//             {
-//                 r1_100 += local_r1_100;
-//             }
-//             int local_r100_1000 = 0;
-//             for (int gt = 0; gt < 100; gt++) {
-//                 for (int topk = 0; topk < 1000; topk++) {
-//                     if (sort_res[topk].first == ground_truth[q][gt]) {
-//                         local_r100_1000 ++;
-//                         break;
-//                     }
-//                 }
-//             }
-//             #pragma omp critical 
-//             {
-//                 r100_1000 += local_r100_1000;
-//             }
-//         }
+            float *hit_res = new float [nlists * 3000] ;
+            CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
+            std::vector <std::pair<int, int>> sort_res;
+            sort_res.clear();
+            for (int i = 0; i < nlists * 3000; i ++) {
+                int nlist = i / 3000, idx = i % 3000 ;
+                int cluster = query_selected_clusters[q * nlists + nlist] ;
+                int point = cluster_points_mapping[cluster][idx] ;
+                sort_res.push_back (std::make_pair (point, hit_res[i]));
+            }
+            sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
+            int local_r1_100 = 0;
+            for (int topk = 0; topk < 100; topk++) {
+                // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
+                if (sort_res[topk].first == ground_truth[q][0]) {
+                    local_r1_100++;
+                    break;
+                }
+            }
+            #pragma omp critical 
+            {
+                r1_100 += local_r1_100;
+            }
+            int local_r100_1000 = 0;
+            for (int gt = 0; gt < 100; gt++) {
+                for (int topk = 0; topk < 1000; topk++) {
+                    if (sort_res[topk].first == ground_truth[q][gt]) {
+                        local_r100_1000 ++;
+                        break;
+                    }
+                }
+            }
+            #pragma omp critical 
+            {
+                r100_1000 += local_r100_1000;
+            }
+        }
         
-//         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
-//         gettimeofday(&ed, NULL);
-//         elapsed("Computing Hit Result", st, ed);
+        std::cout << (100.0 * r1_100) / (1.0 * query_size) << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
+        gettimeofday(&ed, NULL);
+        elapsed("Computing Hit Result", st, ed);
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {
