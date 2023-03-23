@@ -421,10 +421,14 @@ public:
         // int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
         // HARDCODE, query * nlists * dim * bit
-        // int d_hit_record_size = 10000 * 32 * 64 * 32 ;
-        int d_hit_record_size = 1 * 8 * 64 * 32 ;
+        int hit_record_size = 10000 * 32 * 64 * 32 ;
+        // int d_hit_record_size = 1 * 8 * 64 * 32 ;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(uint8_t) * d_hit_record_size)) ;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(float) * d_hit_record_size)) ;
+        // float *hit_record = new float[hit_record_size] ;
+        // std::fill (hit_record, hit_record + hit_record_size, -1.0f) ; // HARDCODE, -dim
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(float) * hit_record_size)) ;
+        CUDA_CHECK(cudaMemset(reinterpret_cast<void*>(d_hit_record), 0, sizeof(float) * hit_record_size)) ;
+        // CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_hit_record), hit_record, sizeof(float) * hit_record_size, cudaMemcpyHostToDevice)) ;
         // int d_query_selected_clusters_size = 10000 * 8 ; // query * nlists
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_query_selected_clusters), sizeof(int) * d_query_selected_clusters_size)) ;
 

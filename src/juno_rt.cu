@@ -57,9 +57,9 @@ extern "C" __global__ void __anyhit__ah() {
     //     }
     // }
     // printf ("query:%d index:%d cluster:%d dim:%d bit:%d prim_idx: %d\n", query, index, cluster, dim, bit, prim_idx) ;
-    // if (cluster == 432 && dim == 0)
-    //     printf ("cluster %d, dim %d, bit %d\n", cluster, dim, bit) ;
-    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += 1 - t * t ;
+    // float dis = 0.5 * 0.5 - (1 - t) * (1 - t) ; // d^2 = r^2 - (1 - t)^2, HARDCODE
+    float dis = 50 * 50 - (100.0 - 100.0 * t) * (100.0 - 100.0 * t) ;
+    htData -> hit_record[query * (8 * 64 * 32) + index * (64 * 32) + dim * 32 + bit] += 10000.0 - dis ; 
     // unsigned int one = 1;
     // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
     // htData->prim_hit[prim_idx>>1] = 114514;

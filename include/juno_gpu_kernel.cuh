@@ -18,7 +18,7 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
 
 void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat);
 
-void getHitResult (int *query_selected_clusters, 
+float* getHitResult (int *query_selected_clusters, 
                     int *points_in_codebook_entry, 
                     int *points_in_codebook_entry_size, 
                     int *points_in_codebook_entry_bias, 

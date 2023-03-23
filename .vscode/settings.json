@@ -69,7 +69,16 @@
         "unordered_set": "cpp",
         "semaphore": "cpp",
         "*.ipp": "cpp",
-        "pipeline": "cpp"
+        "pipeline": "cpp",
+        "propagate_const": "cpp",
+        "complex": "cpp",
+        "barrier": "cpp",
+        "simd": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "regex": "cpp",
+        "span": "cpp",
+        "valarray": "cpp"
     },
     "git.ignoreLimitWarning": true
 }

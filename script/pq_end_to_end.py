@@ -283,11 +283,11 @@ for qid in range(len(xq)):
                 if tmp_dist < radius * 100.0:
                     # selected_codebook_points_num += 1
                     # print ("hit codebook entry " + str (codebook_line_with_id[i][0]))
-                    print ("cluster " + str (skey) + ", dim " + str (sid) + ", bit " + str (codebook_line_with_id[i][0]))
-                    weight = -(tmp_dist ** 2)
-                else:
-                    # weight = -(thres * 100.0) ** 2
-                    weight = -(100.0 ** 2)
+                    print ("cluster " + str (skey) + ", dim " + str (sid) + ", bit " + str (codebook_line_with_id[i][0]) + ", dis " + str (tmp_dist ** 2))
+                    weight = 100 ** 2 - tmp_dist ** 2
+                # else:
+                #     # weight = -(thres * 100.0) ** 2
+                #     weight = -(100.0 ** 2)
                 sceid = codebook_line_with_id[i][0]
                 for point in TREE[skey][sid][sceid]:
                     if point[0] not in occurance:
@@ -327,6 +327,10 @@ for qid in range(len(xq)):
             #         occurance[sc] = 0
             #     occurance[sc] += 1
         # print()
+
+    for point in TREE[432][0][0]:
+        print ("cluster: 432 dim: 0 bit: 0 point: " + str (point[0]))
+    
     print (len (occurance))
     occurance_list = []
     for keys in occurance:

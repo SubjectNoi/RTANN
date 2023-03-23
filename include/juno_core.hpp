@@ -74,8 +74,8 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
-                // Q = 10000; 
-                Q = 1; // TEST!!!
+                Q = 10000; 
+                // Q = 1; // TEST!!!
                 PQ_entry = 32;
                 metric = METRIC_L2;
                 break;
@@ -324,7 +324,7 @@ public:
 
             // Select nlists cluster
             for (int nl = 0; nl < nlists; nl++) {
-                printf ("selected cluster: %d\n", cluster_centroids_vec[nl].first) ;
+                // printf ("selected cluster: %d\n", cluster_centroids_vec[nl].first) ;
                 // Record a pair, stands for: <the cluster c this query q use, the position this query q falls in the cluster c>
                 query_cluster_mapping[q].push_back(std::pair<int, int>(cluster_centroids_vec[nl].first, cluster_query_mapping[cluster_centroids_vec[nl].first].size()));
                 // Push query q into the query_list of cluster c
@@ -423,8 +423,38 @@ public:
                         points_in_codebook_entry[cur_size + p] = inversed_codebook_map_localid[c][d][e][p] ;
                     cur_size += sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
                 }
-        dbg (nlists) ;
-        getHitResult (query_selected_clusters, points_in_codebook_entry, points_in_codebook_entry_size, points_in_codebook_entry_bias, cur_size, d_hit_record, Q, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
+        // dbg (nlists) ;
+        float* d_hit_res ;
+        d_hit_res = getHitResult (query_selected_clusters, points_in_codebook_entry, points_in_codebook_entry_size, points_in_codebook_entry_bias, cur_size, d_hit_record, Q, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
+
+        // {
+        //     int cluster = 432, dim = 0, bit = 0 ;
+        //     for (int i = 0; i < points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit]; i ++) {
+        //         int idx = points_in_codebook_entry[points_in_codebook_entry_bias[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] + i] ;
+        //         printf ("cluster: 432 dim: %d bit: %d point: %d\n", dim, bit, cluster_points_mapping[cluster][idx]);
+        //     }
+        // }
+
+        for (int q = 0; q < 1; q ++) {
+            float *hit_res = new float [nlists * 3000] ;
+            CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
+            std::pair<float, int> *hit_res_pair = new std::pair<float, int> [nlists * 3000] ;
+            for (int i = 0; i < nlists * 3000; i ++) {
+                hit_res_pair[i].first = hit_res[i] ;
+                hit_res_pair[i].second = i ;
+                // printf ("%d: %f\n", i, hit_res[i]) ;
+            }
+            std::sort (hit_res_pair, hit_res_pair + nlists * 3000, std::greater<std::pair<float, int>>()) ;
+            for (int i = 0; i < 10; i ++) {
+                std::pair<float, int> p = hit_res_pair[i] ;
+                int nlist = p.second / 3000, idx = p.second % 3000 ;
+                int cluster = query_selected_clusters[q * nlists + nlist] ;
+                int point = cluster_points_mapping[cluster][idx] ;
+                // printf ("nlist: %d idx: %d \n", nlist, idx) ;
+                // printf ("cluster: %d\n", cluster) ;
+                printf ("%d: %f\n", point, p.first) ;
+            }
+        }
 
 //         gettimeofday(&st, NULL);
 //         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);

@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     juno::juno_core<float> server(path, SIFT1M);
     juno::juno_query_total<float> query(path, SIFT1M);
     server.buildJunoIndexWhole();
-    query.generateQueryBatch(1);
+    query.generateQueryBatch(10000);
     int nlists;
     while (std::cin >> nlists) {
         if (nlists < 0) break;
