@@ -45,7 +45,7 @@ private:
     int***      codebook_labels;        // [C][D/M][]
     std::vector<int>*** inversed_codebook_map; // [C][D/M][32][]
     std::vector<int>*** inversed_codebook_map_localid;
-    uint8_t*    hit_res;
+    // uint8_t*    hit_res;
     int*        sub_cluster_size;       // [C * D/M * 32]
     
     std::map<int, std::vector<int>> points_cluster_mapping;
@@ -55,7 +55,7 @@ private:
     CUstream    stream;
     float factors[64] = {226.91, 226.292, 234.105, 245.577, 279.63, 236.516, 231.948, 269.431, 274.614, 244.002, 235.553, 258.38, 243.939, 237.857, 229.811, 229.819, 244.322, 226.982, 252.21, 246.903, 265.966, 238.008, 231.935, 249.658, 278.304, 241.357, 236.966, 259.187, 245.247, 245.449, 244.663, 229.863, 238.673, 245.904, 235.468, 238.296, 266.595, 246.564, 229.863, 245.392, 275.224, 245.247, 239.019, 254.136, 239.708, 236.212, 248.244, 244.125, 237.346, 247.491, 225.754, 225.657, 276.957, 235.85, 229.142, 265.548, 285.272, 237.186, 252.723, 263.139, 240.983, 220.048, 237.626, 236.326};
     
-    unsigned int* hit_record;
+    // unsigned int* hit_record;
 public:
     juno_core(std::string _dataset_dir, 
               DATASET ds=CUSTOM, 
@@ -109,8 +109,8 @@ public:
         use_pq = _use_pq;
         coarse_grained_cluster_num = _coarse_grained_cluster_num;
         rt_mode = _rt_mode;
-        hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * Q * N));
+        // hit_record = new unsigned int[QUERY_BATCH_MAX * NLISTS_MAX * (D / M)];
+        // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hit_res), sizeof(uint8_t) * Q * N));
         sub_cluster_size = new int[coarse_grained_cluster_num * (D / M) * PQ_entry];
         printf("Reading Search Points...");
         search_points = new T* [N];
@@ -340,7 +340,7 @@ public:
 
         // 2nd setting ray origins
         gettimeofday(&st, NULL);
-        float3* ray_origin_whole = new float3[Q * (D / M) * nlists];
+        float3* ray_origin_whole = new float3[Q * nlists * (D / M)];
         int index_bias = 0, accum = 0;
 
         // Ray Layout: 10000 * nlists * D / 2 rays
@@ -428,7 +428,8 @@ public:
                 }
         dbg (max_entry_size) ;
 
-        uint8_t *belong = new uint8_t [query_size * nlists * (D / M) * 3000] ;
+        uint8_t *belong = new uint8_t [1ll * query_size * nlists * (D / M) * 3000] ;
+        memset (belong, 0, 1ll * sizeof(uint8_t) * query_size * nlists * (D / M) * 3000) ;
         for (int q = 0; q < query_size; q ++) {
             for (int nl = 0; nl < nlists; nl ++) {
                 int c = query_cluster_mapping[q][nl].first;
@@ -436,13 +437,13 @@ public:
                     for (int e = 0; e < PQ_entry; e ++) {
                         for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
                             int point = inversed_codebook_map_localid[c][d][e][i] ;
-                            belong[q * nlists * (D / M) * 3000 + nl * (D / M) * 3000 + d * 3000 + point] = e ;
+                            long long idx = 1ll * q * nlists * (D / M) * 3000 + nl * (D / M) * 3000 + d * 3000 + point ;
+                            belong[idx] = e ;
                         }
                     }
             }
         }
 
-        dbg (nlists) ;
         float* d_hit_res ;
         d_hit_res = getHitResult (query_selected_clusters, cluster_size, belong, d_hit_record, query_size, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
 

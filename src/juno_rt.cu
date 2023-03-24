@@ -46,7 +46,7 @@ extern "C" __global__ void __anyhit__ah() {
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
     int query = idx.x, index = idx.y, dim = idx.z ;
-    int cluster = prim_idx / (params.dim * params.bit) ;
+    // int cluster = prim_idx / (params.dim * params.bit) ;
     // int dim = prim_idx % (64 * 32) / 32;
     int bit = prim_idx % params.bit;
     // int index = 0 ;

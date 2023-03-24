@@ -316,10 +316,12 @@ __global__ void gpuGetHitResult (int *query_selected_clusters, int *cluster_size
     int nlist = bid / 3 % nlists ;
     int candidate_id = (bid % 3) * 1000 + threadIdx.x ;
     if (query_id < Q && nlist < nlists && candidate_id < cluster_size[query_selected_clusters[query_id * nlists + nlist]]) {
+        // printf ("query: %d nlist: %d candidate: %d\n", query_id, nlist, candidate_id) ;
         float res = 0.0 ;
         for (int d = 0; d < D / M; d ++) {
             // belong: Q * nlists * 64 * 3000
-            uint8_t belonging = belong[query_id * nlists * (D / M) * 3000 + nlist * (D / M) * 3000 + d * 3000 + candidate_id];
+            long long idx = 1ll * query_id * nlists * (D / M) * 3000 + nlist * (D / M) * 3000 + d * 3000 + candidate_id ;
+            uint8_t belonging = belong[idx];
             float record = hit_record[query_id * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + d * PQ_entry + belonging];
             res += record;
         }
@@ -404,8 +406,8 @@ float* getHitResult (int *query_selected_clusters,
     // CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_bias), points_in_codebook_entry_bias, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
 
     uint8_t *d_belong ;
-    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_belong), sizeof (uint8_t) * Q * nlists * (D / M) * 3000));
-    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_belong), belong, sizeof (uint8_t) * Q * nlists * (D / M) * 3000, cudaMemcpyHostToDevice));
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_belong), 1ll * sizeof (uint8_t) * Q * nlists * (D / M) * 3000));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_belong), belong, 1ll * sizeof (uint8_t) * Q * nlists * (D / M) * 3000, cudaMemcpyHostToDevice));
 
     float *d_hit_res ;
     CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_hit_res), sizeof (float) * Q * nlists * 3000));
