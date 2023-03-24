@@ -19,10 +19,12 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
 void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat);
 
 float* getHitResult (int *query_selected_clusters, 
-                    int *points_in_codebook_entry, 
-                    int *points_in_codebook_entry_size, 
-                    int *points_in_codebook_entry_bias, 
-                    int points_in_codebook_entry_total_size, 
+                    int *cluster_size, 
+                    // int *points_in_codebook_entry, 
+                    // int *points_in_codebook_entry_size, 
+                    // int *points_in_codebook_entry_bias, 
+                    // int points_in_codebook_entry_total_size, 
+                    uint8_t *belong, 
                     float *d_hit_record, 
                     int Q, int nlists, int C, int D, int M, int PQ_entry) ;
 }; // namespace juno

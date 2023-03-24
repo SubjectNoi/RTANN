@@ -2,8 +2,8 @@
 #include "juno_gpu_kernel.cuh"
 #include <stdio.h>
 
-#include <thrust/pair.h>
-#include <thrust/sort.h>
+// #include <thrust/pair.h>
+// #include <thrust/sort.h>
 
 const float L2max = 1964.62;
 namespace juno {
@@ -271,40 +271,59 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
 // query_selected_clusters: query * nlists
 // points_in_codebook_entry: C * (D / M) * PQ_entry * max_numOfPointsInBit
 // d_hit_record: query * nlists * 64 * 32
-__global__ void gpuGetHitResult (int *query_selected_clusters, 
-                                int *points_in_codebook_entry, 
-                                int *points_in_codebook_entry_size, 
-                                int *points_in_codebook_entry_bias, 
-                                // uint8_t *hit_record, 
-                                // uint8_t *hit_res, 
-                                float *hit_record, 
-                                float *hit_res, 
-                                // thrust::pair<uint8_t, int> *hit_res, 
-                                const int Q, const int nlists, const int D, const int M, const int PQ_entry) {
-    int bit = threadIdx.x ;
-    int bid = blockIdx.x ;
-    int query = bid / (nlists * (D / M)) ;
-    int nlist = bid / (D / M) % nlists;
-    int dim = bid % (D / M);
-    // printf ("device function\n") ;
-    if (bit < PQ_entry && query < Q && nlist < nlists && dim < (D / M)) {
-        __shared__ int cluster ;
-        cluster = query_selected_clusters[query * nlists + nlist] ;
-        __shared__ int size[32] ; // PQ_entry
-        __shared__ int bias[32] ;
-        __shared__ float record[32] ;
-        size[bit] = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
-        bias[bit] = points_in_codebook_entry_bias[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
-        record[bit] = hit_record[query * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
-        __syncthreads() ;
-        // printf ("%f\n", record[bit]) ;
-        // int size = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
-        // printf ("cluster %d, dim %d, bit %d, record %f\n", cluster, dim, bit, record[bit]) ;
-        for (int i = 0; i < size[bit]; i ++) {
-            int point = points_in_codebook_entry[bias[bit] + i] ;
-            atomicAdd (hit_res + query * nlists * 3000 + nlist * 3000 + point, record[bit]) ;
+// __global__ void gpuGetHitResult (int *query_selected_clusters, 
+//                                 int *points_in_codebook_entry, 
+//                                 int *points_in_codebook_entry_size, 
+//                                 int *points_in_codebook_entry_bias, 
+//                                 int *hit_record, 
+//                                 int *hit_res, 
+//                                 // float *hit_record, 
+//                                 // float *hit_res, 
+//                                 // thrust::pair<uint8_t, int> *hit_res, 
+//                                 const int Q, const int nlists, const int D, const int M, const int PQ_entry) {
+//     int bit = threadIdx.x ;
+//     int bid = blockIdx.x ;
+//     int query = bid / (nlists * (D / M)) ;
+//     int nlist = bid / (D / M) % nlists;
+//     int dim = bid % (D / M);
+//     // printf ("device function\n") ;
+//     if (bit < PQ_entry && query < Q && nlist < nlists && dim < (D / M)) {
+//         __shared__ int cluster ;
+//         cluster = query_selected_clusters[query * nlists + nlist] ;
+//         __shared__ int size[32] ; // PQ_entry
+//         __shared__ int bias[32] ;
+//         __shared__ int record[32] ;
+//         size[bit] = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
+//         bias[bit] = points_in_codebook_entry_bias[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
+//         record[bit] = hit_record[query * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
+//         __syncthreads() ;
+//         // printf ("%f\n", record[bit]) ;
+//         // int size = points_in_codebook_entry_size[cluster * (D / M) * PQ_entry + dim * PQ_entry + bit] ;
+//         // printf ("cluster %d, dim %d, bit %d, record %f\n", cluster, dim, bit, record[bit]) ;
+//         // printf ("%d\n", size[bit]) ;
+//         for (int i = 0; i < size[bit]; i ++) {
+//             int point = points_in_codebook_entry[bias[bit] + i] ;
+//             // hit_res[query * nlists * 3000 + nlist * 3000 + point] += record[bit] ;
+//             atomicAdd (hit_res + query * nlists * 3000 + nlist * 3000 + point, record[bit]) ;
+//         }
+//         __syncthreads() ;
+//     }
+// }
+
+__global__ void gpuGetHitResult (int *query_selected_clusters, int *cluster_size, uint8_t *belong, float *hit_record, float *hit_res, const int Q, const int nlists, const int D, const int M, const int PQ_entry) {
+    int bid = blockIdx.x ; // query * nlists * 3
+    int query_id = bid / (nlists * 3) ;
+    int nlist = bid / 3 % nlists ;
+    int candidate_id = (bid % 3) * 1000 + threadIdx.x ;
+    if (query_id < Q && nlist < nlists && candidate_id < cluster_size[query_selected_clusters[query_id * nlists + nlist]]) {
+        float res = 0.0 ;
+        for (int d = 0; d < D / M; d ++) {
+            // belong: Q * nlists * 64 * 3000
+            uint8_t belonging = belong[query_id * nlists * (D / M) * 3000 + nlist * (D / M) * 3000 + d * 3000 + candidate_id];
+            float record = hit_record[query_id * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + d * PQ_entry + belonging];
+            res += record;
         }
-        __syncthreads() ;
+        hit_res[query_id * nlists * 3000 + nlist * 3000 + candidate_id] = res;
     }
 }
 
@@ -353,29 +372,40 @@ __global__ void gpuTop100 (int *bucket, int *bucket_ptr, int *top100, int Q) {
 // points_in_codebook_entry: points_in_codebook_entry_total_size
 // points_in_codebook_entry_size: C * (D / M) * PQ_entry
 // points_in_codebook_entry_bias: C * (D / M) * PQ_entry
+// belong: Q * nlists * 64 * 3000 -> codebook entry
 // d_hit_record: query * nlists * (D / M) * PQ_entry
 float* getHitResult (int *query_selected_clusters, 
-                    int *points_in_codebook_entry, 
-                    int *points_in_codebook_entry_size, 
-                    int *points_in_codebook_entry_bias, 
-                    int points_in_codebook_entry_total_size, 
+                    int *cluster_size, 
+                    // int *points_in_codebook_entry, 
+                    // int *points_in_codebook_entry_size, 
+                    // int *points_in_codebook_entry_bias, 
+                    // int points_in_codebook_entry_total_size, 
+                    uint8_t *belong, 
                     float *d_hit_record, 
                     int Q, int nlists, int C, int D, int M, int PQ_entry) {
     int *d_query_selected_clusters ;
     CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_query_selected_clusters), sizeof (int) * Q * nlists));
     CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_query_selected_clusters), query_selected_clusters, sizeof (int) * Q * nlists, cudaMemcpyHostToDevice));
 
-    int *d_points_in_codebook_entry ;
-    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry), sizeof (int) * points_in_codebook_entry_total_size));
-    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry), points_in_codebook_entry, sizeof (int) * points_in_codebook_entry_total_size, cudaMemcpyHostToDevice));
+    int *d_cluster_size ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_cluster_size), sizeof (int) * C));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_cluster_size), cluster_size, sizeof (int) * C, cudaMemcpyHostToDevice));
 
-    int *d_points_in_codebook_entry_size ;
-    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_size), sizeof (int) * C * (D / M) * PQ_entry));
-    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_size), points_in_codebook_entry_size, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+    // int *d_points_in_codebook_entry ;
+    // CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry), sizeof (int) * points_in_codebook_entry_total_size));
+    // CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry), points_in_codebook_entry, sizeof (int) * points_in_codebook_entry_total_size, cudaMemcpyHostToDevice));
 
-    int *d_points_in_codebook_entry_bias ;
-    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_bias), sizeof (int) * C * (D / M) * PQ_entry));
-    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_bias), points_in_codebook_entry_bias, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+    // int *d_points_in_codebook_entry_size ;
+    // CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_size), sizeof (int) * C * (D / M) * PQ_entry));
+    // CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_size), points_in_codebook_entry_size, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+
+    // int *d_points_in_codebook_entry_bias ;
+    // CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_points_in_codebook_entry_bias), sizeof (int) * C * (D / M) * PQ_entry));
+    // CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_bias), points_in_codebook_entry_bias, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
+
+    uint8_t *d_belong ;
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_belong), sizeof (uint8_t) * Q * nlists * (D / M) * 3000));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_belong), belong, sizeof (uint8_t) * Q * nlists * (D / M) * 3000, cudaMemcpyHostToDevice));
 
     float *d_hit_res ;
     CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_hit_res), sizeof (float) * Q * nlists * 3000));
@@ -388,12 +418,12 @@ float* getHitResult (int *query_selected_clusters,
     cudaEventCreate(&st);
     cudaEventCreate(&ed);
     cudaEventRecord(st);
-    int numOfThreads = Q * nlists * (D / M) * PQ_entry ;
-    // printf("numOfThreads: %d\n", numOfThreads) ;
-    dim3 block (numOfThreads / PQ_entry, 1), thread (PQ_entry, 1);
+    // int numOfThreads = Q * nlists * (D / M) * PQ_entry ;
+    // dim3 block (numOfThreads / PQ_entry, 1), thread (PQ_entry, 1);
     printf ("Q: %d nlists: %d D: %d M: %d PQ_entry: %d\n", Q, nlists, D, M, PQ_entry);
-    // printf ("%d %d %d\n", block.x, block.y, block.z) ;
-    gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, Q, nlists, D, M, PQ_entry);
+    // gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_points_in_codebook_entry, d_points_in_codebook_entry_size, d_points_in_codebook_entry_bias, d_hit_record, d_hit_res, Q, nlists, D, M, PQ_entry);
+    dim3 block (Q * nlists * 3, 1), thread (1000, 1) ;
+    gpuGetHitResult<<<block, thread>>> (d_query_selected_clusters, d_cluster_size, d_belong, d_hit_record, d_hit_res, Q, nlists, D, M, PQ_entry);
     CUDA_SYNC_CHECK();
     cudaEventRecord(ed);
     cudaEventSynchronize(ed);

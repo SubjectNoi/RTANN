@@ -7,6 +7,7 @@
 struct Params {
     OptixTraversableHandle handle;
     int nlists, dim, bit ;
+    float radius ;
 };
 
 struct RayGenData {
@@ -22,7 +23,7 @@ struct MissData {
 
 struct HitGroupData {
     // unsigned int* hit_record;
-    // uint8_t *hit_record ; // query * nlists * (D / M) * PQ_entry
+    // int *hit_record ; // query * nlists * (D / M) * PQ_entry
     float *hit_record ;
     // int *query_selected_clusters ; // query * nlists
 };
@@ -67,7 +68,7 @@ private:
     float3*                         d_ray_origin_whole;
     Params                          params;
     // unsigned int*                   d_hit_record;
-    // uint8_t*                        d_hit_record;
+    // int*                        d_hit_record;
     float*                             d_hit_record;
     // int*                            d_query_selected_clusters;
     int                             hitable_num;
@@ -445,7 +446,13 @@ public:
         sbt.hitgroupRecordCount = 1; 
 
         params.handle = gas_handle;
-        params.nlists = 32, params.dim = 64, params.bit = 32; // HARDCODE
+        // params.nlists = 8, params.dim = 64, params.bit = 32; // HARDCODE
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, sizeof(Params), cudaMemcpyHostToDevice));
+    }
+
+    void setParams (int nlists, int dim, int bit, int radius) {
+        params.nlists = nlists, params.dim = dim, params.bit = bit;
+        params.radius = radius ;
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_params), &params, sizeof(Params), cudaMemcpyHostToDevice));
     }
 

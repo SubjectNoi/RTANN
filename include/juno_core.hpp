@@ -74,8 +74,8 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
-                Q = 10000; 
-                // Q = 1; // TEST!!!
+                // Q = 10000; 
+                Q = 1000; // TEST!!!
                 PQ_entry = 32;
                 metric = METRIC_L2;
                 break;
@@ -392,6 +392,7 @@ public:
         gettimeofday(&ed, NULL);
         elapsed("Copying Ray Origin H->D[GPU]", st, ed);
         gettimeofday(&st, NULL);
+        bvh_dict[0]->setParams (nlists, D / M, PQ_entry, radius) ; // set parameters
         auto pipeline = bvh_dict[0]->getOptixPipeline();
         auto d_param = bvh_dict[0]->getDparams();
         auto sbt = bvh_dict[0]->getSBT();   
@@ -412,6 +413,7 @@ public:
         int *points_in_codebook_entry = new int [points_in_codebook_entry_total_size] ;
         int *points_in_codebook_entry_size = new int [coarse_grained_cluster_num * (D / M) * PQ_entry] ;
         int *points_in_codebook_entry_bias = new int [coarse_grained_cluster_num * (D / M) * PQ_entry] ;
+        int max_entry_size = 0 ;
 
         int cur_size = 0 ;
         for (int c = 0; c < coarse_grained_cluster_num; c ++)
@@ -419,13 +421,30 @@ public:
                 for (int e = 0; e < PQ_entry; e ++) {
                     points_in_codebook_entry_bias[c * (D / M) * PQ_entry + d * PQ_entry + e] = cur_size ;
                     points_in_codebook_entry_size[c * (D / M) * PQ_entry + d * PQ_entry + e] = sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
+                    max_entry_size = std::max (max_entry_size, points_in_codebook_entry_size[c * (D / M) * PQ_entry + d * PQ_entry + e]) ;
                     for (int p = 0; p < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; p ++)
                         points_in_codebook_entry[cur_size + p] = inversed_codebook_map_localid[c][d][e][p] ;
                     cur_size += sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e] ;
                 }
-        // dbg (nlists) ;
+        dbg (max_entry_size) ;
+
+        uint8_t *belong = new uint8_t [query_size * nlists * (D / M) * 3000] ;
+        for (int q = 0; q < query_size; q ++) {
+            for (int nl = 0; nl < nlists; nl ++) {
+                int c = query_cluster_mapping[q][nl].first;
+                for (int d = 0; d < D / M; d ++)
+                    for (int e = 0; e < PQ_entry; e ++) {
+                        for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
+                            int point = inversed_codebook_map_localid[c][d][e][i] ;
+                            belong[q * nlists * (D / M) * 3000 + nl * (D / M) * 3000 + d * 3000 + point] = e ;
+                        }
+                    }
+            }
+        }
+
+        dbg (nlists) ;
         float* d_hit_res ;
-        d_hit_res = getHitResult (query_selected_clusters, points_in_codebook_entry, points_in_codebook_entry_size, points_in_codebook_entry_bias, cur_size, d_hit_record, Q, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
+        d_hit_res = getHitResult (query_selected_clusters, cluster_size, belong, d_hit_record, query_size, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
 
         // {
         //     int cluster = 432, dim = 0, bit = 0 ;
@@ -435,19 +454,19 @@ public:
         //     }
         // }
 
-        #pragma omp parallel for
-        for (int q = 0; q < query_size; q ++) {
-            float *hit_res = new float [nlists * 3000] ;
-            CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
-            std::vector <std::pair<int, int>> sort_res;
-            sort_res.clear();
-            for (int i = 0; i < nlists * 3000; i ++) {
-                int nlist = i / 3000, idx = i % 3000 ;
-                int cluster = query_selected_clusters[q * nlists + nlist] ;
-                int point = cluster_points_mapping[cluster][idx] ;
-                sort_res.push_back (std::make_pair (point, hit_res[i]));
-            }
-        }
+        // #pragma omp parallel for
+        // for (int q = 0; q < query_size; q ++) {
+        //     float *hit_res = new float [nlists * 3000] ;
+        //     CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
+        //     std::vector <std::pair<int, int>> sort_res;
+        //     sort_res.clear();
+        //     for (int i = 0; i < nlists * 3000; i ++) {
+        //         int nlist = i / 3000, idx = i % 3000 ;
+        //         int cluster = query_selected_clusters[q * nlists + nlist] ;
+        //         int point = cluster_points_mapping[cluster][idx] ;
+        //         sort_res.push_back (std::make_pair (point, hit_res[i]));
+        //     }
+        // }
 
         gettimeofday(&st, NULL);
 //         bvh_dict[0]->getRayHitRecord(hit_record, index_bias);
