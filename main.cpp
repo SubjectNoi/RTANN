@@ -11,10 +11,10 @@ int main(int argc, char** argv) {
     // query.generateQueryBatch(10000);
     // server.serveQuery(query.query_queue[0], 8);
 
-    std::string path = std::getenv("JUNO_ROOT") + std::string("/data/SIFT1B/");
-    juno::juno_core<float> server(path, SIFT1B, 10000);
-    juno::juno_query_total<float> query(path, SIFT1B);
-    query.generateQueryBatch(100);
+    std::string path = std::getenv("JUNO_ROOT") + std::string("/data/SIFT1M/");
+    juno::juno_core<float> server(path, SIFT1M, 1000);
+    juno::juno_query_total<float> query(path, SIFT1M);
+    query.generateQueryBatch(10000);
     int nlists;
     float a, b;
     // for (int nlists = 1; nlists < 2; nlists=nlists*2) {

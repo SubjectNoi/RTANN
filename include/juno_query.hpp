@@ -35,7 +35,7 @@ public:
                 metric = METRIC_L2;
                 break;
             case SIFT1B:
-                Q = 100;
+                Q = 10;
                 D = 128;
                 metric = METRIC_L2;
                 break;
