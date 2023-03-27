@@ -7,3 +7,4 @@ setenv.sh
 *.optixir
 *.out
 cmake
+result
