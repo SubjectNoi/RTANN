@@ -310,18 +310,18 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
 //     }
 // }
 
+// belong: cluster * 64 * 3000 -> codebook entry
 __global__ void gpuGetHitResult (int *query_selected_clusters, int *cluster_size, uint8_t *belong, float *hit_record, float *hit_res, const int Q, const int nlists, const int D, const int M, const int PQ_entry) {
     int bid = blockIdx.x ; // query * nlists * 3
     int query_id = bid / (nlists * 3) ;
     int nlist = bid / 3 % nlists ;
     int candidate_id = (bid % 3) * 1000 + threadIdx.x ;
-    if (query_id < Q && nlist < nlists && candidate_id < cluster_size[query_selected_clusters[query_id * nlists + nlist]]) {
+    int cluster = query_selected_clusters[query_id * nlists + nlist] ;
+    if (query_id < Q && nlist < nlists && candidate_id < cluster_size[cluster]) {
         // printf ("query: %d nlist: %d candidate: %d\n", query_id, nlist, candidate_id) ;
         float res = 0.0 ;
         for (int d = 0; d < D / M; d ++) {
-            // belong: Q * nlists * 64 * 3000
-            long long idx = 1ll * query_id * nlists * (D / M) * 3000 + nlist * (D / M) * 3000 + d * 3000 + candidate_id ;
-            uint8_t belonging = belong[idx];
+            uint8_t belonging = belong[cluster * (D / M) * 3000 + d * 3000 + candidate_id];
             float record = hit_record[query_id * nlists * (D / M) * PQ_entry + nlist * (D / M) * PQ_entry + d * PQ_entry + belonging];
             res += record;
         }
@@ -374,7 +374,7 @@ __global__ void gpuTop100 (int *bucket, int *bucket_ptr, int *top100, int Q) {
 // points_in_codebook_entry: points_in_codebook_entry_total_size
 // points_in_codebook_entry_size: C * (D / M) * PQ_entry
 // points_in_codebook_entry_bias: C * (D / M) * PQ_entry
-// belong: Q * nlists * 64 * 3000 -> codebook entry
+// belong: cluster * 64 * 3000 -> codebook entry
 // d_hit_record: query * nlists * (D / M) * PQ_entry
 float* getHitResult (int *query_selected_clusters, 
                     int *cluster_size, 
@@ -406,8 +406,8 @@ float* getHitResult (int *query_selected_clusters,
     // CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_points_in_codebook_entry_bias), points_in_codebook_entry_bias, sizeof (int) * C * (D / M) * PQ_entry, cudaMemcpyHostToDevice));
 
     uint8_t *d_belong ;
-    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_belong), 1ll * sizeof (uint8_t) * Q * nlists * (D / M) * 3000));
-    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_belong), belong, 1ll * sizeof (uint8_t) * Q * nlists * (D / M) * 3000, cudaMemcpyHostToDevice));
+    CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_belong), 1ll * sizeof (uint8_t) * C * (D / M) * 3000));
+    CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (d_belong), belong, 1ll * sizeof (uint8_t) * C * (D / M) * 3000, cudaMemcpyHostToDevice));
 
     float *d_hit_res ;
     CUDA_CHECK (cudaMalloc (reinterpret_cast<void**> (&d_hit_res), sizeof (float) * Q * nlists * 3000));
@@ -432,6 +432,11 @@ float* getHitResult (int *query_selected_clusters,
     float ms;
     cudaEventElapsedTime(&ms, st, ed);
     std::cout << "GPU Hit Res: " << ms << std::endl;
+
+    CUDA_CHECK (cudaFree (d_query_selected_clusters));
+    CUDA_CHECK (cudaFree (d_cluster_size));
+    CUDA_CHECK (cudaFree (d_belong)) ;
+    // CUDA_CHECK (cudaFree (d_hit_res)) ;
 
     return d_hit_res ;
 

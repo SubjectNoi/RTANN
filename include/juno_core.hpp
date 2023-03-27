@@ -74,8 +74,8 @@ public:
             case SIFT1M:
                 N = 1000000;
                 D = 128;
-                // Q = 10000; 
-                Q = 1000; // TEST!!!
+                Q = 10000; 
+                // Q = 1000; // TEST!!!
                 PQ_entry = 32;
                 metric = METRIC_L2;
                 break;
@@ -258,11 +258,11 @@ public:
         }
     }
 
-    void buildJunoIndexWhole() {
+    void buildJunoIndexWhole(T _radius) {
         OPTIX_CHECK(optixInit());
         std::remove("/var/tmp/OptixCache_zhliu/optix7cache.db");
         bvh_dict[0] = new juno_rt<T>(Q);
-        bvh_dict[0]->constructCompleteBVHwithPQ(codebook_entry, coarse_grained_cluster_num, PQ_entry, D, M, stat, radius, metric);
+        bvh_dict[0]->constructCompleteBVHwithPQ(codebook_entry, coarse_grained_cluster_num, PQ_entry, D, M, stat, _radius, metric);
     }
 
     void serveQueryWhole(juno_query_batch<T>* _query_batch, int nlists) {
@@ -428,20 +428,32 @@ public:
                 }
         dbg (max_entry_size) ;
 
-        uint8_t *belong = new uint8_t [1ll * query_size * nlists * (D / M) * 3000] ;
-        memset (belong, 0, 1ll * sizeof(uint8_t) * query_size * nlists * (D / M) * 3000) ;
-        for (int q = 0; q < query_size; q ++) {
-            for (int nl = 0; nl < nlists; nl ++) {
-                int c = query_cluster_mapping[q][nl].first;
-                for (int d = 0; d < D / M; d ++)
-                    for (int e = 0; e < PQ_entry; e ++) {
-                        for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
-                            int point = inversed_codebook_map_localid[c][d][e][i] ;
-                            long long idx = 1ll * q * nlists * (D / M) * 3000 + nl * (D / M) * 3000 + d * 3000 + point ;
-                            belong[idx] = e ;
-                        }
+        // uint8_t *belong = new uint8_t [1ll * query_size * nlists * (D / M) * 3000] ;
+        // memset (belong, 0, 1ll * sizeof(uint8_t) * query_size * nlists * (D / M) * 3000) ;
+        // for (int q = 0; q < query_size; q ++) {
+        //     for (int nl = 0; nl < nlists; nl ++) {
+        //         int c = query_cluster_mapping[q][nl].first;
+        //         for (int d = 0; d < D / M; d ++)
+        //             for (int e = 0; e < PQ_entry; e ++) {
+        //                 for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
+        //                     int point = inversed_codebook_map_localid[c][d][e][i] ;
+        //                     long long idx = 1ll * q * nlists * (D / M) * 3000 + nl * (D / M) * 3000 + d * 3000 + point ;
+        //                     belong[idx] = e ;
+        //                 }
+        //             }
+        //     }
+        // }
+
+        uint8_t *belong = new uint8_t [coarse_grained_cluster_num * (D / M) * 3000] ;
+        memset (belong, 0, sizeof(uint8_t) * coarse_grained_cluster_num * (D / M) * 3000) ;
+        for (int c = 0; c < coarse_grained_cluster_num; c ++) {
+            for (int d = 0; d < D / M; d ++)
+                for (int e = 0; e < PQ_entry; e ++) {
+                    for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
+                        int point = inversed_codebook_map_localid[c][d][e][i] ;
+                        belong[c * (D / M) * 3000 + d * 3000 + point] = e ;
                     }
-            }
+                }
         }
 
         float* d_hit_res ;
@@ -551,6 +563,8 @@ public:
         std::cout << (100.0 * r1_100) / (1.0 * query_size) << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;
         gettimeofday(&ed, NULL);
         elapsed("Computing Hit Result", st, ed);
+
+        CUDA_CHECK (cudaFree (d_hit_res));
     }
 
     void serveQuery(juno_query_batch<T>* _query_batch, int nlists) {
