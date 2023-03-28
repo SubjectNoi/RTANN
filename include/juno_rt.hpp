@@ -422,7 +422,7 @@ public:
         // int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
         // HARDCODE, query * nlists * dim * bit
-        int hit_record_size = 10000 * 64 * 64 * 32 ;
+        int hit_record_size = 10000 * 64 * 96 * 32 ;
         // int d_hit_record_size = 1 * 8 * 64 * 32 ;
         // CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(uint8_t) * d_hit_record_size)) ;
         // float *hit_record = new float[hit_record_size] ;

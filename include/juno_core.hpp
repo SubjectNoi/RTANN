@@ -444,20 +444,20 @@ public:
         //     }
         // }
 
-        uint8_t *belong = new uint8_t [coarse_grained_cluster_num * (D / M) * 3000] ;
-        memset (belong, 0, sizeof(uint8_t) * coarse_grained_cluster_num * (D / M) * 3000) ;
+        uint8_t *belong = new uint8_t [coarse_grained_cluster_num * (D / M) * max_cluster_size] ;
+        memset (belong, 0, sizeof(uint8_t) * coarse_grained_cluster_num * (D / M) * max_cluster_size) ;
         for (int c = 0; c < coarse_grained_cluster_num; c ++) {
             for (int d = 0; d < D / M; d ++)
                 for (int e = 0; e < PQ_entry; e ++) {
                     for (int i = 0; i < sub_cluster_size[c * (D / M) * PQ_entry + d * PQ_entry + e]; i ++) {
                         int point = inversed_codebook_map_localid[c][d][e][i] ;
-                        belong[c * (D / M) * 3000 + d * 3000 + point] = e ;
+                        belong[c * (D / M) * max_cluster_size + d * max_cluster_size + point] = e ;
                     }
                 }
         }
 
         float* d_hit_res ;
-        d_hit_res = getHitResult (query_selected_clusters, cluster_size, belong, d_hit_record, query_size, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
+        d_hit_res = getHitResult (query_selected_clusters, cluster_size, max_cluster_size, belong, d_hit_record, query_size, nlists, coarse_grained_cluster_num, D, M, PQ_entry) ;
 
         // {
         //     int cluster = 432, dim = 0, bit = 0 ;
@@ -522,15 +522,17 @@ public:
 //                     sort_res.push_back(std::pair<int, int>(it->first, it->second));
 //                 }
 //             }
-            float *hit_res = new float [nlists * 3000] ;
-            CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * 3000, sizeof (float) * nlists * 3000, cudaMemcpyDeviceToHost));
+            float *hit_res = new float [nlists * max_cluster_size] ;
+            CUDA_CHECK (cudaMemcpy (reinterpret_cast<void*> (hit_res), d_hit_res + q * nlists * max_cluster_size, sizeof (float) * nlists * max_cluster_size, cudaMemcpyDeviceToHost));
             std::vector <std::pair<int, int>> sort_res;
             sort_res.clear();
-            for (int i = 0; i < nlists * 3000; i ++) {
-                int nlist = i / 3000, idx = i % 3000 ;
+            for (int i = 0; i < nlists * max_cluster_size; i ++) {
+                int nlist = i / max_cluster_size, idx = i % max_cluster_size ;
                 int cluster = query_selected_clusters[q * nlists + nlist] ;
-                int point = cluster_points_mapping[cluster][idx] ;
-                sort_res.push_back (std::make_pair (point, hit_res[i]));
+                if (idx < cluster_size[cluster]) {
+                    int point = cluster_points_mapping[cluster][idx] ;
+                    sort_res.push_back (std::make_pair (point, hit_res[i]));
+                }
             }
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
             int local_r1_100 = 0;
