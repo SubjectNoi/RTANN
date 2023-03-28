@@ -373,8 +373,8 @@ public:
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
                 for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 100.0;
-                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 100.0;
+                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 20.0;
+                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 20.0;
                     ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
                     index_bias++;
                 }

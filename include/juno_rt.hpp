@@ -111,8 +111,8 @@ public:
                 // float _radius = _r * factors[d];
                 float _radius = _r * 1.0;
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
-                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
-                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
+                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 20.0;
+                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 20.0;
                     // float factor = 1.0 * std::min(std::abs(x), std::abs(y));
                     float factor = alpha * std::min(std::abs(x), std::abs(y));
                     centers[_c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
