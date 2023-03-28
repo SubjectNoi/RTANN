@@ -20,6 +20,7 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
 
 float* getHitResult (int *query_selected_clusters, 
                     int *cluster_size, 
+                    int max_cluster_size, 
                     // int *points_in_codebook_entry, 
                     // int *points_in_codebook_entry_size, 
                     // int *points_in_codebook_entry_bias, 
