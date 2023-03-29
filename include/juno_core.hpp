@@ -83,7 +83,11 @@ public:
 
                 break;
             case TTI1M:
-
+                N = 1000000;
+                D = 200;
+                Q = 10000;
+                PQ_entry = 32;
+                metric = METRIC_MIPS;
                 break;
             case TTI1B:
 
@@ -129,7 +133,7 @@ public:
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
         for (int i = 0; i < coarse_grained_cluster_num; i++) cluster_centroids[i] = new T[D];
-        read_cluster_centroids<T>((dataset_dir + "parameter_0/" + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
+        read_cluster_centroids<T>((dataset_dir + "parameter_correct/" + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
         square_C = new T[coarse_grained_cluster_num];
         std::vector <T> centroid;
         for (int i = 0; i < coarse_grained_cluster_num; i++) {
@@ -147,7 +151,7 @@ public:
         printf("Reading Search Point Labels...");
         search_points_labels = new int[N];
         cluster_points_mapping.clear() ;
-        read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
+        read_search_points_labels((dataset_dir + "parameter_correct/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
         for (int n = 0; n < N; n++) {
             int label = search_points_labels[n];
             points_cluster_mapping[label].push_back(n);
@@ -213,7 +217,7 @@ public:
                     codebook_labels[c][d] = new int[cluster_size[c]];
                 }
             }
-            read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
+            read_codebook_entry_labels(dataset_dir + "parameter_correct/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
             printf("Finished\n");
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
             inversed_codebook_map_localid = new std::vector<int>** [coarse_grained_cluster_num];
@@ -281,15 +285,20 @@ public:
         
         // Record which clusters a query falls in
         std::vector<std::vector<std::pair<int, int>>> query_cluster_mapping;
-        float **L2mat = new float*[query_size];
-        for (int q = 0; q < query_size; q++) L2mat[q] = new float[coarse_grained_cluster_num];
+        float **distmat = new float*[query_size];
+        for (int q = 0; q < query_size; q++) distmat[q] = new float[coarse_grained_cluster_num];
         // Can be optimized with OpenBLAS   
         gettimeofday(&st, NULL);     
         for (int q = 0; q < query_size; q++) {
             // Calculate the L2-dist between every cluster centroids
             // #pragma omp parallel for
             for (int c = 0; c < coarse_grained_cluster_num; c++) {
-                L2mat[q][c] = L2Dist(query_data[q], cluster_centroids[c], D);
+                if (metric == METRIC_L2) {
+                    distmat[q][c] = L2Dist(query_data[q], cluster_centroids[c], D);
+                }
+                else if (metric == METRIC_MIPS) {
+                    distmat[q][c] = IP(query_data[q], cluster_centroids[c], D);
+                }
             }
             std::vector <std::pair<int, int>> query_place_holder;
             query_cluster_mapping.push_back(query_place_holder);
@@ -318,9 +327,16 @@ public:
             }
 
             // Sort by L2 distance
-            std::sort(cluster_centroids_vec.begin(), cluster_centroids_vec.end(), [q, L2mat](const std::pair<int, std::vector <T>>& a, const std::pair<int, std::vector <T>>& b) {
-                return L2mat[q][a.first] < L2mat[q][b.first];
-            });
+            if (metric == METRIC_L2) {
+                std::sort(cluster_centroids_vec.begin(), cluster_centroids_vec.end(), [q, distmat](const std::pair<int, std::vector <T>>& a, const std::pair<int, std::vector <T>>& b) {
+                    return distmat[q][a.first] < distmat[q][b.first];
+                });
+            }
+            else if (metric == METRIC_MIPS) {
+                std::sort(cluster_centroids_vec.begin(), cluster_centroids_vec.end(), [q, distmat](const std::pair<int, std::vector <T>>& a, const std::pair<int, std::vector <T>>& b) {
+                    return distmat[q][a.first] > distmat[q][b.first];
+                });
+            }
 
             // Select nlists cluster
             for (int nl = 0; nl < nlists; nl++) {
@@ -370,8 +386,8 @@ public:
             for (int nlist = 0; nlist < nlists; nlist ++) 
                 for (int d = 0; d < D / M; d ++) {
                     int c = query_cluster_mapping[q][nlist].first;
-                    float x = (1.0 * query_data[q][2 * d]) / 20.0;
-                    float y = (1.0 * query_data[q][2 * d + 1]) / 20.0;
+                    float x = (1.0 * query_data[q][2 * d]) / 0.4;
+                    float y = (1.0 * query_data[q][2 * d + 1]) / 0.4;
                     // printf ("c: %d x: %f y: %f z: %f\n", c, x, y, 1.0 * (c * 128 + 2 * d)) ;
                     ray_origin_whole[q * nlists * (D / M) + nlist * (D / M) + d] = make_float3(x, y, 1.0 * (c * D + 2 * d));
                     // index_bias++;

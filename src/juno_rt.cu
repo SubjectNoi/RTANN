@@ -59,6 +59,7 @@ extern "C" __global__ void __anyhit__ah() {
     // printf ("query:%d index:%d cluster:%d dim:%d bit:%d prim_idx: %d\n", query, index, cluster, dim, bit, prim_idx) ;
     // float dis = 0.5 * 0.5 - (1 - t) * (1 - t) ; // d^2 = r^2 - (1 - t)^2, HARDCODE
     float dis = 10.0 * params.radius * 10.0 * params.radius - (10.0 - 10.0 * t) * (10.0 - 10.0 * t) ;
+    // float dis = params.radius * params.radius - (1.0 - t) * (1.0 - t);
     htData -> hit_record[query * (params.nlists * params.dim * params.bit) + index * (params.dim * params.bit) + dim * params.bit + bit] += 100.0 - dis ;
     // htData -> hit_record[query * (params.nlists * params.dim * params.bit) + index * (params.dim * params.bit) + dim * params.bit + bit] += 1 ;
     // unsigned int one = 1;

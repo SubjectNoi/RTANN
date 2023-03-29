@@ -85,6 +85,15 @@ T L2Dist(T* x, T* y, int D) {
 }
 
 template <typename T>
+T IP(T* x, T* y, int D) {
+    T res = 0.0;
+    for (int i = 0; i < D; i++) {
+        res += x[i] * y[i];
+    }
+    return res;
+}
+
+template <typename T>
 T L2Dist(std::vector<T> a, std::vector<T> b) {
     T res = 0.0;
     int D = a.size();
@@ -92,6 +101,16 @@ T L2Dist(std::vector<T> a, std::vector<T> b) {
         res += (a[i] - b[i]) * (a[i] - b[i]);
     }
     return sqrt(res);
+}
+
+template <typename T>
+T IP(std::vector<T> a, std::vector<T> b) {
+    T res = 0.0;
+    int D = a.size();
+    for (int i = 0; i < D; i++) {
+        res += a[i] * b[i];
+    }
+    return res;
 }
 
 template <typename T>
