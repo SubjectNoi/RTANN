@@ -370,8 +370,8 @@ public:
             for (int nlist = 0; nlist < nlists; nlist ++) 
                 for (int d = 0; d < D / M; d ++) {
                     int c = query_cluster_mapping[q][nlist].first;
-                    float x = (1.0 * query_data[q][2 * d]) / 20.0;
-                    float y = (1.0 * query_data[q][2 * d + 1]) / 20.0;
+                    float x = (1.0 * query_data[q][2 * d]) / 100.0;
+                    float y = (1.0 * query_data[q][2 * d + 1]) / 100.0;
                     // printf ("c: %d x: %f y: %f z: %f\n", c, x, y, 1.0 * (c * 128 + 2 * d)) ;
                     ray_origin_whole[q * nlists * (D / M) + nlist * (D / M) + d] = make_float3(x, y, 1.0 * (c * D + 2 * d));
                     // index_bias++;
