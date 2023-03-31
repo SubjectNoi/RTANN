@@ -48,7 +48,7 @@ extern "C" __global__ void __anyhit__ah() {
     int query = idx.x, index = idx.y, dim = idx.z ;
     // int cluster = prim_idx / (params.dim * params.bit) ;
     // int dim = prim_idx % (64 * 32) / 32;
-    int bit = prim_idx % params.bit;
+    int bit = prim_idx % 32;
     // int index = 0 ;
     // for (int i = 0; i < 8; i ++) { // nlists
     //     if (htData -> query_selected_clusters[query * 8 + i] == cluster) {
@@ -58,9 +58,9 @@ extern "C" __global__ void __anyhit__ah() {
     // }
     // printf ("query:%d index:%d cluster:%d dim:%d bit:%d prim_idx: %d\n", query, index, cluster, dim, bit, prim_idx) ;
     // float dis = 0.5 * 0.5 - (1 - t) * (1 - t) ; // d^2 = r^2 - (1 - t)^2, HARDCODE
-    float dis = 10.0 * params.radius * 10.0 * params.radius - (10.0 - 10.0 * t) * (10.0 - 10.0 * t) ;
+    float dis = 49 - (10.0 - 10.0 * t) * (10.0 - 10.0 * t) ;
     // float dis = params.radius * params.radius - (1.0 - t) * (1.0 - t);
-    htData -> hit_record[query * (params.nlists * params.dim * params.bit) + index * (params.dim * params.bit) + dim * params.bit + bit] += 100.0 - dis ;
+    htData -> hit_record[query * (params.nlists * 3200) + index * 3200 + dim * 32 + bit] += 100.0 - dis ;
     // htData -> hit_record[query * (params.nlists * params.dim * params.bit) + index * (params.dim * params.bit) + dim * params.bit + bit] += 1 ;
     // unsigned int one = 1;
     // htData->hit_record[idx.x] |= (one << (prim_idx % 32));
