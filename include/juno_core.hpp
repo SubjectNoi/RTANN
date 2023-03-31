@@ -86,7 +86,11 @@ public:
                 metric = METRIC_L2;
                 break;
             case TTI1M:
-
+                N = 1000000;
+                D = 200;
+                Q = 10000;
+                PQ_entry = 32;
+                metric = METRIC_MIPS;
                 break;
             case TTI1B:
 
@@ -132,7 +136,7 @@ public:
         cluster_centroids = new T* [coarse_grained_cluster_num];
         cluster_centroids_flatten = new T[coarse_grained_cluster_num * D];
         for (int i = 0; i < coarse_grained_cluster_num; i++) cluster_centroids[i] = new T[D];
-        read_cluster_centroids<T>((dataset_dir + "parameter_0/" + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
+        read_cluster_centroids<T>((dataset_dir + "parameter_correct/" + "cluster_centroids_" + std::to_string(coarse_grained_cluster_num)).c_str(), cluster_centroids, coarse_grained_cluster_num, D);
         square_C = new T[coarse_grained_cluster_num];
         std::vector <T> centroid;
         for (int i = 0; i < coarse_grained_cluster_num; i++) {
@@ -150,7 +154,7 @@ public:
         printf("Reading Search Point Labels...");
         search_points_labels = new int[N];
         std::vector<std::vector<int>> cluster_points_mapping;
-        read_search_points_labels((dataset_dir + "parameter_0/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
+        read_search_points_labels((dataset_dir + "parameter_correct/" + "search_points_labels_" + std::to_string(coarse_grained_cluster_num)).c_str(), search_points_labels, N);
         for (int n = 0; n < N; n++) {
             int label = search_points_labels[n];
             points_cluster_mapping[label].push_back(n);
@@ -217,7 +221,7 @@ public:
                     codebook_labels[c][d] = new int[cluster_size[c]];
                 }
             }
-            read_codebook_entry_labels(dataset_dir + "parameter_0/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
+            read_codebook_entry_labels(dataset_dir + "parameter_correct/" + "codebook_" + std::to_string(coarse_grained_cluster_num), codebook_entry, codebook_labels, cluster_size, coarse_grained_cluster_num, PQ_entry, D);
             printf("Finished\n");
             
             inversed_codebook_map = new std::vector<int>** [coarse_grained_cluster_num];
@@ -373,9 +377,9 @@ public:
             float bias = 1.0 * c;
             for (int d = 0; d < D / M; d++) {
                 for (int q = 0; q < query_of_cluster_c; q++) {
-                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 20.0;
-                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 20.0;
-                    ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * 128 + 2 * d));
+                    float x = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d]) / 0.4;
+                    float y = (1.0 * query_data[cluster_query_mapping[c][q]][2 * d + 1]) / 0.4;
+                    ray_origin_whole[index_bias] = make_float3(x, y, 1.0 * (c * D + 2 * d));
                     index_bias++;
                 }
             }
@@ -429,6 +433,7 @@ public:
                     for (int d = 0; d < D / M; d++) {
                         unsigned int hit_res = hit_record[base_addr + query_in_cluster_id * (MAX_ENTRY / 32) + bit_id + d * stride];
                         for (unsigned int bit = 0; bit < 32; bit++) {
+                            // std::cout << q << " " << nl << " " << bit_id << " " << d << " " << bit << std::endl;
                             if ((hit_res & (one << bit)) != zero) {
                                 // int cnt = 0;
                                 for (auto && item : inversed_codebook_map[tmp_cluster][d][bit]) {
@@ -451,10 +456,11 @@ public:
                 }
             }
             sort(sort_res.begin(), sort_res.end(), [](const std::pair<int, int> a, const std::pair<int, int> b) {return a.second > b.second;});
-            // std::cout << sort_res.size() << std::endl;
+
             // for (auto&& item : sort_res) {
             //     std::cout << item.first << " " << item.second << std::endl;
             // }
+            
             int local_r1_100 = 0;
             for (int topk = 0; topk < 100; topk++) {
                 // std::cout << "(" << sort_res[topk].first << ", " << sort_res[topk].second << "), " << std::endl;
@@ -480,6 +486,7 @@ public:
             {
                 r100_1000 += local_r100_1000;
             }
+            
         }
         
         std::cout << r1_100 << " " << (1.0 * r100_1000) / (1.0 * query_size) << std::endl;

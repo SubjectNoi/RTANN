@@ -39,11 +39,11 @@
 #define SCALE 0.75
 #define HIT_REC_PER_C 200
 #define QUERY_BATCH_MAX 10000
-#define MAX_ENTRY 512
+#define MAX_ENTRY 32
 #define CURRENT_ENTRY 32
 #define CELL_NUM (MAX_ENTRY / 32)
 // #define VERBOSE 1
-
+#define TOKEN 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
 enum RT_MODE {
     QUERY_AS_RAY = 0,
     QUERY_AS_TRIANGLE = 1,

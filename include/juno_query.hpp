@@ -40,7 +40,9 @@ public:
                 metric = METRIC_L2;
                 break;
             case TTI1M:
-
+                Q = 10000;
+                D = 200;
+                metric = METRIC_MIPS;
                 break;
             case TTI1B:
 
