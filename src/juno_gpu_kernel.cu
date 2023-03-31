@@ -264,7 +264,7 @@ void referenceModel(float* _search_points, float* _query, float* _centroids, int
     // std::cout << recalls / (1.0 * _Q) << std::endl;
 }
 
-__global__ void gpuCalcHitResult(unsigned int* __hit_record, 
+__global__ void gpuCalcHitResult(unsigned long long* __hit_record, 
                                  uint8_t* __hit_res, 
                                  int __nlists,
                                  int* __query_cluster_mapping,
@@ -284,11 +284,10 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
         int base_addr           = __cluster_bias[tmp_cluster] * 64;
         int stride              = __cluster_query_size[tmp_cluster];
         // printf("%d, %d : %d, %d, %d, %d\n", qid, did, tmp_cluster, query_in_cluster_id, base_addr, stride);
-        unsigned int hit_rec    = __hit_record[base_addr + query_in_cluster_id + did * stride];
+        unsigned long long hit_rec    = __hit_record[base_addr + query_in_cluster_id + did * stride];
         // printf("%d, %d : %d, %d, %d, %d, %08x\n", qid, did, tmp_cluster, query_in_cluster_id, base_addr, stride, hit_rec);
         for (int bit = 0; bit < 32; bit++) {
-            if ((hit_rec & (1 << bit)) != 0) {
-
+            if ((hit_rec & (1 << (bit * 2))) != 0) {
                 int index = tmp_cluster * (64 * 32) + did * 32 + bit;
                 int sub_cluster_base = __entry_base_addr[index];
                 int sub_cluster_size = __sub_cluster_size[index];
@@ -296,12 +295,17 @@ __global__ void gpuCalcHitResult(unsigned int* __hit_record,
                 for (int i = 0; i < sub_cluster_size; i++) {
                     __hit_res[__inversed_codebook_map[sub_cluster_base + i]]++;
                 }
+                if ((hit_rec & (1 << (bit * 2 + 1))) != 0) {
+                    for (int i = 0; i < sub_cluster_size; i++) {
+                        __hit_res[__inversed_codebook_map[sub_cluster_base + i]]++;
+                    }
+                }
             }
         }
     }
 }
 
-void getHitResult(unsigned int* _hit_record, 
+void getHitResult(unsigned long long* _hit_record, 
                   uint8_t* _hit_res, 
                   int _nlists,
                   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
@@ -312,9 +316,9 @@ void getHitResult(unsigned int* _hit_record,
                   int* _sub_cluster_size)
 {
     int N = 1000000, Q = 10000, C = 1000, D = 128, M = 2, PQ_entry = 32;
-    unsigned int* d_hit_record;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * Q * (D / M) * _nlists));
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_hit_record), _hit_record, sizeof(unsigned int) * Q * (D / M) * _nlists, cudaMemcpyHostToDevice));
+    unsigned long long* d_hit_record;
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned long long) * Q * (D / M) * _nlists));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_hit_record), _hit_record, sizeof(unsigned long long) * Q * (D / M) * _nlists, cudaMemcpyHostToDevice));
 
     int *h_query_cluster_mapping, *d_query_cluster_mapping;
     h_query_cluster_mapping = new int[Q * _nlists * 2];

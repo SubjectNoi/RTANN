@@ -44,8 +44,8 @@ extern "C" __global__ void __anyhit__ah() {
     // const float t = optixGetRayTmax();
     const unsigned int prim_idx = optixGetPrimitiveIndex();
     HitGroupData* htData = (HitGroupData*)optixGetSbtDataPointer();
-    unsigned int one = 1;
-    htData->hit_record[idx.x * (MAX_ENTRY / 32) + ((prim_idx % 32) / 32)] |= (one << (prim_idx % 32));
+    unsigned long long one = 1;
+    htData->hit_record[idx.x * (MAX_ENTRY / 32) + (((prim_idx / 2) % 32) / 32)] |= (one << (prim_idx % 64));
     // htData->prim_hit[prim_idx>>1] = 114514;
     // htData->prim_hit[prim_idx >> 1] = 114514;
     optixIgnoreIntersection();

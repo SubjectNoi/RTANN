@@ -21,7 +21,7 @@ struct MissData {
 };
 
 struct HitGroupData {
-    unsigned int* hit_record;
+    unsigned long long* hit_record;
     unsigned int* ray_info;
 };
 
@@ -64,7 +64,8 @@ private:
     float3*                         d_ray_origin;
     float3*                         d_ray_origin_whole;
     Params                          params;
-    unsigned int*                   d_hit_record;
+    // unsigned int*                   d_hit_record;
+    unsigned long long*             d_hit_record ;
     int                             hitable_num;
     int                             dim_pair;
 
@@ -101,7 +102,7 @@ public:
         dim_pair = _D / _M;
         int prim_idx = 0;
         int num_sphere_per_dim_pair = _C;
-        hitable_num = _coarse_grained_cluster_num * num_sphere_per_dim_pair * dim_pair;
+        hitable_num = _coarse_grained_cluster_num * num_sphere_per_dim_pair * dim_pair * 2;
         centers = new float3[hitable_num];
         radius = new float[hitable_num];
         for (int _c = 0; _c < _coarse_grained_cluster_num; _c++) {
@@ -111,15 +112,19 @@ public:
                 // float _radius = _r * factors[d];
                 float _radius = _r * 1.0;
                 for (int n = 0; n < num_sphere_per_dim_pair; n++) {
-                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 20.0;
-                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 20.0;
+                    float x = (1.0 * _codebook_entry[c][d][n][0]) / 100.0;
+                    float y = (1.0 * _codebook_entry[c][d][n][1]) / 100.0;
                     // float factor = 1.0 * std::min(std::abs(x), std::abs(y));
                     float factor = alpha * std::min(std::abs(x), std::abs(y));
-                    centers[_c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
+                    centers[_c * dim_pair * num_sphere_per_dim_pair * 2 + d * num_sphere_per_dim_pair * 2 + n * 2] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
                     // if (c == 432 && d == 0) printf("Prim %d:(%.6f, %.6f, %.6f)\n", prim_idx, x, y, 1.0 * (c * 128 + 2 * d + 1));
                     // radius[c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(0.45 + factor);
-                    radius[_c * dim_pair * num_sphere_per_dim_pair + d * num_sphere_per_dim_pair + n] = static_cast<float>(beta+factor);
+                    radius[_c * dim_pair * num_sphere_per_dim_pair * 2 + d * num_sphere_per_dim_pair * 2 + n * 2] = static_cast<float>(beta+factor);
                     prim_idx++;
+
+                    // second smaller sphere
+                    centers[_c * dim_pair * num_sphere_per_dim_pair * 2 + d * num_sphere_per_dim_pair * 2 + n * 2 + 1] = make_float3(x, y, 1.0 * (c * 128 + 2 * d + 1));
+                    radius[_c * dim_pair * num_sphere_per_dim_pair * 2 + d * num_sphere_per_dim_pair * 2 + n * 2 + 1] = static_cast<float>((beta+factor) / 2.0);
                 }
             }
         }
@@ -416,7 +421,7 @@ public:
         sbt.missRecordCount = 1;  
                 
         int d_hit_record_size = QUERY_BATCH_MAX * dim_pair * NLISTS_MAX * (MAX_ENTRY / 32);
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned int) * d_hit_record_size));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_hit_record), sizeof(unsigned long long) * d_hit_record_size));
         CUdeviceptr hitgroup_record;
         size_t hitgroup_record_size = sizeof(HitGroupSbtRecord);
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitgroup_record), hitgroup_record_size));
@@ -441,8 +446,8 @@ public:
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void*>(d_ray_origin_whole), ray_origin, sizeof(float3) * size, cudaMemcpyHostToDevice));
     }
 
-    void getRayHitRecord(unsigned int* hit_record, int size) {
-        CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned int) * size * (MAX_ENTRY / 32), cudaMemcpyDeviceToHost));
+    void getRayHitRecord(unsigned long long* hit_record, int size) {
+        CUDA_CHECK(cudaMemcpy(hit_record, reinterpret_cast<void*>(d_hit_record), sizeof(unsigned long long) * size * (MAX_ENTRY / 32), cudaMemcpyDeviceToHost));
     }
 
     // static void initRayOriginArray(int Q, int D, int M, int _nlists) {
@@ -461,7 +466,7 @@ public:
         return &sbt;
     }
 
-    unsigned int* getPrimitiveHit() {
+    unsigned long long* getPrimitiveHit() {
         return d_hit_record;
     }
 

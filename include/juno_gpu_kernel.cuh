@@ -17,7 +17,7 @@ void plotQueryWithDensity(float* _search_points, float* _query, float* _centroid
 
 void referenceModel(float* _search_points, float* _query, float* _centroids, int* _labels, int* _ground_truth, int _N, int _Q, int _D, int _C, float** stat);
 
-void getHitResult(unsigned int* _hit_record, 
+void getHitResult(unsigned long long* _hit_record, 
                   uint8_t* _hit_res, 
                   int _nlists,
                   std::vector<std::vector<std::pair<int, int>>> _query_cluster_mapping,
