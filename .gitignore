@@ -6,3 +6,4 @@ gmon.out
 setenv.sh
 *.optixir
 result
+*.png

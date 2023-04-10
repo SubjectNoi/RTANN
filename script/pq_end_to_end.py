@@ -19,7 +19,7 @@ import time
 d = 96
 n = 1000000
 nlists = int(sys.argv[2])
-q = 1
+q = 100
 bias = 0
 thres = float(sys.argv[1])
 cluster_num = int(sys.argv[3])
@@ -29,7 +29,7 @@ while len(random_indices) < q:
     index = np.random.randint(0, 10000, 1)[0]
     if index not in random_indices:
         random_indices.append(index)
-random_indices = [0]
+# random_indices = [0]
 
 def l2(x, y):
     res = 0.0
@@ -43,8 +43,15 @@ def calccnt(pts, query, pq_d, pq_m, thres, max_dist):
         # bound = max_dist[i]
         x = pts[i * pq_m : (i + 1) * pq_m]
         y = query[i * pq_m : (i + 1) * pq_m]
-        if l2(x, y) < thres * 20.0:
+        if l2(x, y) <= thres * max_dist[i]:
             cnt += 1
+        # dis = IP (x, y)
+        # if dis >= thres * 0.3 * sum (y):
+        #     cnt += 1
+        # elif dis >= thres / 2 * 0.3 * sum (y):
+        #     cnt += 0
+        # else:
+        #     cnt += -1
     return cnt
 def ivecs_read(fname):
     a = np.fromfile(fname, dtype='int32')
@@ -55,36 +62,80 @@ def ivecs_read(fname):
 def fvecs_read(fname):
     return ivecs_read(fname).view('float32')
 
-# xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
-# xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
-# gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
+xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
+xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
+gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
 
-xb = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_base.fvecs")
-xq = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1B_queries.fvecs")
-gts = ivecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_groundtruth.ivecs")
-for i in range(len(xb)):
-    for j in range(d):
-        xb[i][j] *= 100.0
+# xb = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_base.fvecs")
+# xq = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1B_queries.fvecs")
+# gts = ivecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_groundtruth.ivecs")
+# for i in range(len(xb)):
+#     for j in range(d):
+#         xb[i][j] *= 100.0
 
-for i in range(len(xq)):
-    for j in range(d):
-        xq[i][j] *= 100.0
+# for i in range(len(xq)):
+#     for j in range(d):
+#         xq[i][j] *= 100.0
+
+# from datasets import load_tti1M, evaluate 
+def IP(x, y):
+    return np.dot (x, y)
+# xb, xq, xt, gts = load_tti1M()
+
+nq, d = xq.shape
+pq_m = 2
+pq_d = int(d // pq_m)
+
+# phi: max l2 norm of xb
+# print (xb[0].shape, xb[0])
+# phi = max (np.linalg.norm(xb, axis=1))
+
+# xbb = []
+# for i in range (len (xb)):
+#     xbb.append (np.append (xb[i], [(phi ** 2 - np.linalg.norm(xb[i]) ** 2) ** 0.5, 0]))
+# xb = np.array (xbb)
+
+# xqq = []
+# for i in range (len (xq)):
+#     xqq.append (np.append (xq[i], [0, 0]))
+# xq = np.array (xqq)
+# d += 2
+
+# print (xb[0].shape, xb[0])
 
 print("Reading xb/xq/gt Finished")
+
+# random projections
+# xbb = np.zeros ((n, d))
+# for i in range (pq_d):
+#     proj = np.random.randn (d, pq_m)
+#     proj = proj / np.linalg.norm (proj, axis=0)
+#     xbb[:, i * pq_m : (i + 1) * pq_m] = xb.dot (proj)
+# xb = xbb
+
+# xqq = np.zeros ((nq, d))
+# for i in range (pq_d):
+#     proj = np.random.randn (d, pq_m)
+#     proj = proj / np.linalg.norm (proj, axis=0)
+#     xqq[:, i * pq_m : (i + 1) * pq_m] = xq.dot (proj)
+# xq = xqq
+
+# print ("random projection finished.")
+
 xb = xb[0:n]
 # xq = xq[bias:bias+q]
 xq = [xq[ind] for ind in random_indices]
 stat = []
-# for i in range(d):
-#     tmp = [x[i] for x in xb]
-#     stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
+for i in range(d):
+    tmp = [x[i] for x in xb]
+    stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
 
 # kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
-# print ("Start Clustering")
+print ("Start Clustering")
 # kmeans = KMeans(n_clusters=nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(xb)
 # cluster_centroids = kmeans.cluster_centers_
 # labels = kmeans.labels_
-# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/cluster_centroids=%d" % (nlists), "w+")
+# f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/cluster_centroids=%d" % (nlists), "w+")
 # for cc in cluster_centroids:
 #     for x in cc:
 #         f1.write("%f " % (x))
@@ -96,7 +147,9 @@ stat = []
 # f1.close()
 
 cluster_centroids, labels = [], []
-f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/DEEP1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/TTI1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+# f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/cluster_centroids=%d" % (nlists)).readlines()
 
 fcentroids, flabels = f1[0:nlists], f1[-1]
 flabels = flabels.split()[0:n]
@@ -113,15 +166,13 @@ for i in range(len(cluster_centroids)):
     cluster_centroids_with_id.append([i, cluster_centroids[i]])
 
 pq_nlists = int(sys.argv[4])
-pq_m = 2
-pq_d = int(d // pq_m)
 
 max_dist = []
-# for i in range(pq_d):
-#     res = 0.0
-#     for j in range(pq_m):
-#         res += (stat[i * pq_m + j][2] ** 2)
-#     max_dist.append(res ** 0.5)
+for i in range(pq_d):
+    res = 0.0
+    for j in range(pq_m):
+        res += (stat[i * pq_m + j][2] ** 2)
+    max_dist.append(res ** 0.5)
 
 cluster_mapping = {}
 for i in range(len(labels)):
@@ -141,7 +192,7 @@ for keys in cluster_mapping:
         # subkmeans = KMeans(n_clusters=pq_nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(X)
         # sub_centroids = subkmeans.cluster_centers_
         # sub_labels = subkmeans.labels_
-        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_1/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
+        # fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
         # for item in sub_centroids:
         #     for x in item:
         #         fcluster.write("%f " % (x))
@@ -150,7 +201,10 @@ for keys in cluster_mapping:
         # for item in sub_labels:
         #     fcluster.write("%d " % (item))
         # fcluster.close()
-        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/DEEP1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+
+        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        # fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/TTI1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
         sub_centroids, sub_labels = [], []
         fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
         fsublabels = fsublabels.split()[0:len(current_cluster)]
@@ -159,6 +213,7 @@ for keys in cluster_mapping:
             sub_centroids.append(tmp)
         for item in fsublabels:
             sub_labels.append(int(item))
+
         pq_centroids.append(sub_centroids)
         pq_labels.append(sub_labels)
     for icc in range(len(current_cluster)):
@@ -207,6 +262,7 @@ r1cnt10, r1pqcnt10 = 0, 0
 r1cnt100, r1pqcnt100 = 0, 0
 for qid in range(len(xq)):
     query = xq[qid]
+    query_sum = sum (query)
     query_seg = []
     for pq in range(pq_d):
         query_seg.append(query[pq * pq_m : (pq + 1) * pq_m])
@@ -265,12 +321,38 @@ for qid in range(len(xq)):
             codebook_line_with_id = []
             for i in range(len(current_codebook[sid])):
                 codebook_line_with_id.append([i, current_codebook[sid][i]])
-            codebook_line_with_id.sort(key=lambda x : l2(x[1], seg))
+            # codebook_line_with_id.sort(key=lambda x : IP(x[1], seg), reverse=True)
             selected_codebook_points_num = 0
+
             for i in range(len(codebook_line_with_id)):
-                tmp_dist = l2(seg, codebook_line_with_id[i][1])
-                if tmp_dist < thres * 20.0:
-                    selected_codebook_points_num += 1
+                codebook_point = codebook_line_with_id[i][1]
+                weight = 0
+                tmp_dist = l2 (seg, codebook_point)
+                if tmp_dist <= thres * max_dist[sid]:
+                    weight = 1
+                # tmp_dist = IP(seg, codebook_line_with_id[i][1])
+                # if tmp_dist >= thres * 0.3 * sum (seg):
+                #     weight = 1
+                # elif tmp_dist >= thres / 2 * 0.3 * sum (seg):
+                #     weight = 0
+                # else:
+                #     weight = -1
+                sceid = codebook_line_with_id[i][0]
+                for point in TREE[skey][sid][sceid]:
+                    if point[0] not in occurance:
+                        occurance[point[0]] = 0
+                    occurance[point[0]] += weight
+
+            # for i in range(len(codebook_line_with_id)):
+            #     # tmp_dist = l2(seg, codebook_line_with_id[i][1])
+            #     # if tmp_dist < thres:
+            #     #     selected_codebook_points_num += 1
+            #     tmp_ip = IP (seg, codebook_line_with_id[i][1])
+            #     # print (tmp_ip)
+            #     if tmp_ip >= thres / 2 * 0.3 * sum (seg):
+            #         selected_codebook_points_num += 1
+            #     if tmp_ip >= thres * 0.3 * sum (seg):
+            #         selected_codebook_points_num += 1
             # if selected_codebook_points_num == 0:
             #     selected_codebook_points_num = 1
             
@@ -285,42 +367,43 @@ for qid in range(len(xq)):
             # plt.clf()
             
             # print("%08x" % (mask), end=' ')
-            sel_codebook_entry_id = [x[0] for x in codebook_line_with_id[0:selected_codebook_points_num]]
+            # sel_codebook_entry_id = [x[0] for x in codebook_line_with_id[0:selected_codebook_points_num]]
             
-            mask = 0
-            for sceid in sel_codebook_entry_id:
-                mask |= (1 << sceid)
-            for sceid in sel_codebook_entry_id:
-                mask |= (1 << sceid)
-                for i in TREE[skey][sid][sceid]:
-                    # if i[0] == 1884: print("%2d, %2d,  %08x, %08x, %s" % (sid, sceid, mask, (mask & ((1 << sceid))), "Hit" if ((mask & ((1 << sceid))) != 0) else "   "))
-                    seg_candidate.append(i[0])
-            # print("%08x" % (mask), end=' ')
-            # if sid % 16 == 15: print()
-            for sc in seg_candidate:
-                if sc not in occurance:
-                    occurance[sc] = 0
-                occurance[sc] += 1
-        print()
+            # mask = 0
+            # for sceid in sel_codebook_entry_id:
+            #     mask |= (1 << sceid)
+            # for sceid in sel_codebook_entry_id:
+            #     mask |= (1 << sceid)
+            #     for i in TREE[skey][sid][sceid]:
+            #         # if i[0] == 1884: print("%2d, %2d,  %08x, %08x, %s" % (sid, sceid, mask, (mask & ((1 << sceid))), "Hit" if ((mask & ((1 << sceid))) != 0) else "   "))
+            #         seg_candidate.append(i[0])
+            # # print("%08x" % (mask), end=' ')
+            # # if sid % 16 == 15: print()
+            # for sc in seg_candidate:
+            #     if sc not in occurance:
+            #         occurance[sc] = 0
+            #     occurance[sc] += 1
+        # print()
     occurance_list = []
     for keys in occurance:
         occurance_list.append([keys, occurance[keys]])
-    occurance_list.sort(key=lambda x : x[0])
-    for ol in occurance_list:
-        print(ol[0], ol[1])
+    # occurance_list.sort(key=lambda x : x[0])
+    # for ol in occurance_list:
+    #     print(ol[0], ol[1])
     occurance_list.sort(key=lambda x : x[1])
     occurance_list = occurance_list[::-1]
+    print (occurance_list[0:10])
     res_pq = [x[0] for x in occurance_list[0:1000]]
     recall_pq = 0
     for r in res_pq:
         if r in gt:
             recall_pq += 1
     recall_2.append(recall_pq)
-    if nearest in res_pq[0:100]:
+    if len (res_pq) >= 100 and nearest in res_pq[0:100]:
         r1pqcnt100 += 1
-    if nearest in res_pq[0:10]:
+    if len (res_pq) >= 10 and nearest in res_pq[0:10]:
         r1pqcnt10 += 1
-    if nearest == res_pq[0]:
+    if len (res_pq) >= 1 and nearest == res_pq[0]:
         r1pqcnt += 1
 print("\nCase: nprobs=%d, radius=%.6f, query_size=%d" % (cluster_num, thres, q))
 print("R100@1000[Exhaust, Radius, PQ]: ", np.mean(recall_0), np.mean(recall_1), np.mean(recall_2))

@@ -75,7 +75,7 @@ print(xb_l2.shape, xq_l2.shape)
 kmeans = KMeans(n_clusters=nlists, init='scalable-k-means++', n_init=1).fit(xb_l2)
 cluster_centroids = kmeans.cluster_centers_
 labels = kmeans.labels_
-f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/TTI1M/parameter_correct/cluster_centroids_%d" % (nlists), "w+")
+f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/cluster_centroids_%d" % (nlists), "w+")
 for cc in cluster_centroids:
     for i in range(200):
         f1.write("%f " % (cc[i]))
