@@ -1,0 +1,35 @@
+Case: nprobs=4, radius=0.600000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  61.12 15.02 54.75
+R1@1     [         Radius, PQ]:  0.0 4.0
+R1@10    [         Radius, PQ]:  1.0 23.0
+R1@100   [         Radius, PQ]:  4.0 46.0
+
+Case: nprobs=8, radius=0.600000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  78.24 9.94 62.03
+R1@1     [         Radius, PQ]:  0.0 6.0
+R1@10    [         Radius, PQ]:  1.0 23.0
+R1@100   [         Radius, PQ]:  2.0 57.0
+
+Case: nprobs=12, radius=0.600000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  81.12 7.39 61.0
+R1@1     [         Radius, PQ]:  0.0 7.0
+R1@10    [         Radius, PQ]:  0.0 22.0
+R1@100   [         Radius, PQ]:  2.0 50.0
+
+Case: nprobs=16, radius=0.600000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  86.9 7.17 58.96
+R1@1     [         Radius, PQ]:  0.0 3.0
+R1@10    [         Radius, PQ]:  1.0 22.0
+R1@100   [         Radius, PQ]:  2.0 53.0
+
+Case: nprobs=20, radius=0.600000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  87.4 6.87 59.85
+R1@1     [         Radius, PQ]:  0.0 3.0
+R1@10    [         Radius, PQ]:  0.0 18.0
+R1@100   [         Radius, PQ]:  0.0 50.0
+
+Case: nprobs=8, radius=0.700000, query_size=100
+R100@1000[Exhaust, Radius, PQ]:  76.6 11.93 60.28
+R1@1     [         Radius, PQ]:  0.0 3.0
+R1@10    [         Radius, PQ]:  0.0 20.0
+R1@100   [         Radius, PQ]:  3.0 52.0

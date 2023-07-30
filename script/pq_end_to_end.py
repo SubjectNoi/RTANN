@@ -16,8 +16,9 @@ import time
 # import torch    
 # from kmeans_pytorch import kmeans
 
-d = 96
+d = 200
 n = 1000000
+nq = 10000
 nlists = int(sys.argv[2])
 q = 100
 bias = 0
@@ -43,11 +44,13 @@ def calccnt(pts, query, pq_d, pq_m, thres, max_dist):
         # bound = max_dist[i]
         x = pts[i * pq_m : (i + 1) * pq_m]
         y = query[i * pq_m : (i + 1) * pq_m]
-        if l2(x, y) <= thres * max_dist[i]:
+        if l2 (x, y) < 1.01:
+        # if l2(x, y) <= thres * max_dist[i]:
             cnt += 1
-        # dis = IP (x, y)
-        # if dis >= thres * 0.3 * sum (y):
+        # dis = IP (x, y) / np.linalg.norm (y)
+        # if dis >= thres * 0.42:
         #     cnt += 1
+            # cnt += IP (x, y)
         # elif dis >= thres / 2 * 0.3 * sum (y):
         #     cnt += 0
         # else:
@@ -62,9 +65,9 @@ def ivecs_read(fname):
 def fvecs_read(fname):
     return ivecs_read(fname).view('float32')
 
-xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
-xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
-gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
+# xb = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_base.fvecs")
+# xq = fvecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_query.fvecs")
+# gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs")
 
 # xb = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1M_base.fvecs")
 # xq = fvecs_read("/home/zhliu/workspace/faiss_sample/deep/deep1B_queries.fvecs")
@@ -77,13 +80,28 @@ gts = ivecs_read("/home/zhliu/workspace/faiss_sample/sift/sift_groundtruth.ivecs
 #     for j in range(d):
 #         xq[i][j] *= 100.0
 
-# from datasets import load_tti1M, evaluate 
+from datasets import load_tti1M, evaluate 
 def IP(x, y):
     return np.dot (x, y)
-# xb, xq, xt, gts = load_tti1M()
+xb, xq, xt, gts = load_tti1M()
+
+# xbb = np.zeros ((n, 2 * d))
+# for i in range (len (xb)):
+#     for j in range (d):
+#         xbb[i][j * 2] = (1 - xb[i][j] ** 2) ** 0.5
+#         xbb[i][j * 2 + 1] = xb[i][j]
+# xb = xbb
+
+# xqq = np.zeros ((nq, 2 * d))
+# for i in range (len (xq)):
+#     for j in range (d):
+#         xqq[i][j * 2] = 0
+#         xqq[i][j * 2 + 1] = xq[i][j]
+# xq = xqq
 
 nq, d = xq.shape
-pq_m = 2
+print (d)
+pq_m = 5
 pq_d = int(d // pq_m)
 
 # phi: max l2 norm of xb
@@ -125,40 +143,40 @@ print("Reading xb/xq/gt Finished")
 xb = xb[0:n]
 # xq = xq[bias:bias+q]
 xq = [xq[ind] for ind in random_indices]
-stat = []
-for i in range(d):
-    tmp = [x[i] for x in xb]
-    stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
+# stat = []
+# for i in range(d):
+#     tmp = [x[i] for x in xb]
+#     stat.append([i, np.min(tmp), np.max(tmp), np.mean(tmp), np.std(tmp)])
 
 # kmeans = KMeans(n_clusters=nlists, init='k-means++', n_init=64).fit(xb)
 print ("Start Clustering")
-# kmeans = KMeans(n_clusters=nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(xb)
-# cluster_centroids = kmeans.cluster_centers_
-# labels = kmeans.labels_
-# f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/cluster_centroids=%d" % (nlists), "w+")
-# for cc in cluster_centroids:
-#     for x in cc:
-#         f1.write("%f " % (x))
-#     f1.write("\n")
+kmeans = KMeans(n_clusters=nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(xb)
+cluster_centroids = kmeans.cluster_centers_
+labels = kmeans.labels_
+f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_PQ40/cluster_centroids=%d" % (nlists), "w+")
+for cc in cluster_centroids:
+    for x in cc:
+        f1.write("%f " % (x))
+    f1.write("\n")
 
-# f1.write("-----\n")
-# for l in labels:
-#     f1.write("%d " % (l))
-# f1.close()
+f1.write("-----\n")
+for l in labels:
+    f1.write("%d " % (l))
+f1.close()
 
-cluster_centroids, labels = [], []
-f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
+# cluster_centroids, labels = [], []
+# f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
 # f1 = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/TTI1M/parameter_0/cluster_centroids_%d" % (nlists)).readlines()
-# f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/cluster_centroids=%d" % (nlists)).readlines()
+# f1 = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_addDimOnEveryDim/cluster_centroids=%d" % (nlists)).readlines()
 
-fcentroids, flabels = f1[0:nlists], f1[-1]
-flabels = flabels.split()[0:n]
-for item in fcentroids:
-    tmp = [float(x) for x in item.split()[0:d]]
-    cluster_centroids.append(tmp)
-for item in flabels:
-    labels.append(int(item))
-print("First Cluster Finished")
+# fcentroids, flabels = f1[0:nlists], f1[-1]
+# flabels = flabels.split()[0:n]
+# for item in fcentroids:
+#     tmp = [float(x) for x in item.split()[0:d]]
+#     cluster_centroids.append(tmp)
+# for item in flabels:
+#     labels.append(int(item))
+# print("First Cluster Finished")
 
 
 cluster_centroids_with_id = []
@@ -168,11 +186,11 @@ for i in range(len(cluster_centroids)):
 pq_nlists = int(sys.argv[4])
 
 max_dist = []
-for i in range(pq_d):
-    res = 0.0
-    for j in range(pq_m):
-        res += (stat[i * pq_m + j][2] ** 2)
-    max_dist.append(res ** 0.5)
+# for i in range(pq_d):
+#     res = 0.0
+#     for j in range(pq_m):
+#         res += (stat[i * pq_m + j][2] ** 2)
+#     max_dist.append(res ** 0.5)
 
 cluster_mapping = {}
 for i in range(len(labels)):
@@ -187,32 +205,32 @@ for keys in cluster_mapping:
     current_cluster = cluster_mapping[keys]
     pq_centroids, pq_labels = [], []
     for pq in range(pq_d):
-        # X = [[x[pq * 2], x[pq * 2 + 1]] for x in [y[1] for y in current_cluster]]
-        # X = np.array(X)
-        # subkmeans = KMeans(n_clusters=pq_nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(X)
-        # sub_centroids = subkmeans.cluster_centers_
-        # sub_labels = subkmeans.labels_
-        # fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
-        # for item in sub_centroids:
-        #     for x in item:
-        #         fcluster.write("%f " % (x))
-        #     fcluster.write("\n")
-        # fcluster.write("-----\n")
-        # for item in sub_labels:
-        #     fcluster.write("%d " % (item))
-        # fcluster.close()
+        X = [x[pq * pq_m : (pq + 1) * pq_m] for x in [y[1] for y in current_cluster]]
+        X = np.array(X)
+        subkmeans = KMeans(n_clusters=pq_nlists, init='scalable-k-means++', n_init=32, max_iter=600).fit(X)
+        sub_centroids = subkmeans.cluster_centers_
+        sub_labels = subkmeans.labels_
+        fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_PQ40/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq), "w+")
+        for item in sub_centroids:
+            for x in item:
+                fcluster.write("%f " % (x))
+            fcluster.write("\n")
+        fcluster.write("-----\n")
+        for item in sub_labels:
+            fcluster.write("%d " % (item))
+        fcluster.close()
 
-        fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
-        # fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_correct/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/SIFT1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
+        # fcluster = open("/home/wtni/RTANN/RTANN/data/TTI1M/parameter_addDimOnEveryDim/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
         # fcluster = open("/home/zhliu/workspace/NVIDIA-OptiX-SDK-7.5.0-linux64-x86_64/RTANN/data/TTI1M/parameter_0/codebook_%d/codebook_cluster=%d_dim=%d" % (nlists, keys, pq)).readlines()
-        sub_centroids, sub_labels = [], []
-        fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
-        fsublabels = fsublabels.split()[0:len(current_cluster)]
-        for item in fsubcentroids:
-            tmp = [float(x) for x in item.split()[0:pq_m]]
-            sub_centroids.append(tmp)
-        for item in fsublabels:
-            sub_labels.append(int(item))
+        # sub_centroids, sub_labels = [], []
+        # fsubcentroids, fsublabels = fcluster[0:pq_nlists], fcluster[-1]
+        # fsublabels = fsublabels.split()[0:len(current_cluster)]
+        # for item in fsubcentroids:
+        #     tmp = [float(x) for x in item.split()[0:pq_m]]
+        #     sub_centroids.append(tmp)
+        # for item in fsublabels:
+        #     sub_labels.append(int(item))
 
         pq_centroids.append(sub_centroids)
         pq_labels.append(sub_labels)
@@ -328,9 +346,12 @@ for qid in range(len(xq)):
                 codebook_point = codebook_line_with_id[i][1]
                 weight = 0
                 tmp_dist = l2 (seg, codebook_point)
-                if tmp_dist <= thres * max_dist[sid]:
+                if tmp_dist < 1.01:
+                # if tmp_dist <= thres * max_dist[sid]:
                     weight = 1
-                # tmp_dist = IP(seg, codebook_line_with_id[i][1])
+                # tmp_dist = IP(seg, codebook_line_with_id[i][1]) / np.linalg.norm (seg)
+                # if tmp_dist >= thres * 0.42:
+                #     weight = 1
                 # if tmp_dist >= thres * 0.3 * sum (seg):
                 #     weight = 1
                 # elif tmp_dist >= thres / 2 * 0.3 * sum (seg):
