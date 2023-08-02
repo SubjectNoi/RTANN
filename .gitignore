@@ -7,3 +7,4 @@ setenv.sh
 *.optixir
 result
 *.png
+__pycache__

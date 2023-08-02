@@ -112,20 +112,18 @@ def load_deep1B():
     path = "/home/wtni/RTANN/RTANN/data/Deep1B/"
     print("Loading deep1B...", end='', file=sys.stderr)
     xt = fvecs_read(path + "deep10M.fvecs")
-    # xb = fvecs_read(path + "base.fvecs")
 
-    array_list = []
-    d = 96
-    for i in range (4):
-        a = np.fromfile(path + "base_0" + str (i), dtype='int32', count=-1)
-        print (a.shape)
-        array_list.append (a)
-
-    n = 100 * 1000000 # 100M
-    xb = np.concatenate (array_list)[:97 * n].reshape (-1, d + 1).copy()
+    # d = 96
+    # n = 100 * 1000000 # 100M
+    # a = np.fromfile(path + "base", dtype='int32')
+    # xb = a[:(d + 1) * n].reshape (-1, d + 1)[:, 1:].copy().view ('float32')
+    # print (xb)
+    # np.save (path + "xb.npy", xb)
+    xb = np.load (path + "xb.npy").astype ("float32")
 
     xq = fvecs_read(path + "deep1B_queries.fvecs")
-    gt = ivecs_read(path + "deep1B_groundtruth.ivecs")
+    # gt = ivecs_read(path + "deep1B_groundtruth.ivecs")
+    gt = np.load (path + "groundtruth.npy")
     print("done", file=sys.stderr)
 
     return xb, xq, xt, gt
